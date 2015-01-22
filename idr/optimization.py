@@ -153,13 +153,17 @@ def coordinate_ascent(r1, r2, theta, gradient_magnitude,
             neg = calc_loss( r1, r2, theta + init_alpha*gradient )
             if neg < prev_loss < pos:
                 gradient[j] = gradient[j]
-                #assert(calc_loss( r1, r2, theta - init_alpha*gradient ) > prev_loss)
-                #assert(calc_loss( r1, r2, theta + init_alpha*gradient ) <= prev_loss)
+                #assert(calc_loss( 
+                #       r1, r2, theta - init_alpha*gradient ) > prev_loss)
+                #assert(calc_loss( 
+                #       r1, r2, theta + init_alpha*gradient ) <= prev_loss)
                 break
             elif neg > prev_loss > pos:
                 gradient[j] = -gradient[j]
-                #assert(calc_loss( r1, r2, theta - init_alpha*gradient ) > prev_loss)
-                #assert(calc_loss( r1, r2, theta + init_alpha*gradient ) <= prev_loss)
+                #assert(calc_loss( 
+                #    r1, r2, theta - init_alpha*gradient ) > prev_loss)
+                #assert(calc_loss( 
+                #    r1, r2, theta + init_alpha*gradient ) <= prev_loss)
                 break
             else:
                 init_alpha *= 10         
@@ -309,25 +313,33 @@ def find_local_maximum_PV(r1, r2, theta, N=100, EPS=1e-6,
 def EMP_with_pseudo_value_algorithm(
         r1, r2, theta_0, N=100, EPS=1e-4, 
         fix_mu=False, fix_sigma=False):
-    theta = theta_0
+    theta = theta_0    
+    z1 = compute_pseudo_values(r1, theta[0], theta[1], theta[3])
+    z2 = compute_pseudo_values(r2, theta[0], theta[1], theta[3])
+
     for i in range(N):
         mu, sigma, rho, p = theta
-        z1 = compute_pseudo_values(r1, mu, sigma, p)
-        z2 = compute_pseudo_values(r2, mu, sigma, p)            
         prev_theta = theta
         theta = EM_estimate(
             z1, z2, prev_theta, fix_mu=fix_mu, fix_sigma=fix_sigma)
-                            
+        sum_param_change = numpy.abs(theta - prev_theta).sum()
+        
+        prev_z1 = z1
+        z1 = compute_pseudo_values(r1, mu, sigma, p)
+        prev_z2 = z2
+        z2 = compute_pseudo_values(r2, mu, sigma, p)            
+        mean_pseudo_val_change = (
+            numpy.abs(prev_z1-z1).mean() + numpy.abs(prev_z2-z2).mean())
+        
         if VERBOSE:
             print( "Iter %i\t" % i, 
-                   "%.2e" % numpy.abs(theta - prev_theta).sum(),
+                   "%.2e" % sum_param_change,
+                   "%.2e" % mean_pseudo_val_change,
                    "%.4e" % log_lhd_loss(r1, r2, theta),
                    theta)
         
-        if i > 3 and numpy.abs(theta - prev_theta).sum() < EPS: 
+        if i > 3 and mean_pseudo_val_change < EPS: 
             break
-        else:
-            prev_theta = theta
     
     return theta, log_lhd_loss(r1, r2, theta)
 
