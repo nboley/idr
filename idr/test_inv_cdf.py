@@ -9,8 +9,8 @@ from scipy.optimize import bisect, brentq
 
 import timeit
 
-import pyximport; pyximport.install()
-from inv_cdf import cdf, cdf_i, cdf_d1
+#import pyximport; pyximport.install()
+from idr.inv_cdf import cdf, cdf_i, cdf_d1
 
 import sympy
 
@@ -143,18 +143,18 @@ def main():
     while i < 50 and abs(x - new_x) > 1e-6:
         x = new_x
         new_x = halley_step(x, mu, sigma, lamda, r)
-        print "H", abs(x-new_x), x, new_x
+        print( "H", abs(x-new_x), x, new_x )
         i += 1
 
-    print r-cdf( x, mu, sigma, lamda ), r, cdf( x, mu, sigma, lamda )
+    print( r-cdf( x, mu, sigma, lamda ), r, cdf( x, mu, sigma, lamda ) )
 
 def test_deriv():
     for x in range(10):
-        print py_cdf_d1_simple( x, 0, 1, 0.5 )
-        print py_cdf_d1( x, 0, 1, 0.5 )
-        print cdf_d1( x, 0, 1, 0.5 )
-        print FD_d1( x, 0, 1, 0.5 )
-        print
+        print( py_cdf_d1_simple( x, 0, 1, 0.5 ) )
+        print( py_cdf_d1( x, 0, 1, 0.5 ) )
+        print( cdf_d1( x, 0, 1, 0.5 ))
+        print( FD_d1( x, 0, 1, 0.5 ) )
+        print()
 
 
 def simulate_values(N, params):
@@ -183,7 +183,7 @@ def t1():
 def t2():
     return py_compute_pseudo_values(r1_ranks, 1, 1, 0.5)
 
-print timeit.timeit( "t1()", number=10, setup="from __main__ import t1"  )
+#print( timeit.timeit( "t1()", number=10, setup="from __main__ import t1"  ) )
 #print timeit.timeit( "t2()", number=10, setup="from __main__ import t2"  )
 
 #test_i_cdf()

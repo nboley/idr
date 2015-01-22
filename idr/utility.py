@@ -27,8 +27,8 @@ def simulate_values(N, params):
 
 # import the inverse cdf functions
 try: 
-    import pyximport; pyximport.install()
-    from inv_cdf import cdf, cdf_i
+    #import pyximport; pyximport.install()
+    from idr.inv_cdf import cdf, cdf_i
 except ImportError:
     print( "WARNING: Cython does not appear to be installed - falling back to much slower python method." )
     def cdf(x, mu, sigma, pi):

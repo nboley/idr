@@ -24,7 +24,7 @@ VERBOSE = False
 #(calc_gaussian_mix_log_lhd, calc_gaussian_mix_log_lhd_gradient
 # ) = symbolic.build_mixture_loss_and_grad()
 
-from utility import (
+from idr.utility import (
     compute_pseudo_values, 
     calc_post_membership_prbs, 
     calc_gaussian_mix_log_lhd )

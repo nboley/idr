@@ -27,9 +27,9 @@ DEFAULT_SIGMA = 0.8
 DEFAULT_RHO = 0.6
 DEFAULT_MIX_PARAM = 0.5
 
-import optimization
-from optimization import estimate_model_params, old_estimator
-from utility import calc_post_membership_prbs, compute_pseudo_values
+import idr.optimization
+from idr.optimization import estimate_model_params, old_estimator
+from idr.utility import calc_post_membership_prbs, compute_pseudo_values
 
 
 def load_bed(fp, signal_type):
@@ -309,7 +309,7 @@ Contact: Nikhil R Podduturi <nikhilrp@stanford.edu>
         QUIET = True 
         VERBOSE = False
     
-    optimization.VERBOSE = VERBOSE
+    idr.optimization.VERBOSE = VERBOSE
 
     global IGNORE_NONOVERLAPPING_PEAKS
     IGNORE_NONOVERLAPPING_PEAKS = not args.use_nonoverlapping_peaks
