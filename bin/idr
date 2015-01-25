@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+import os, sys
+
+if sys.version_info.major <= 2:
+   raise ValueError( "IDR requires python version 3 or higher" )
+
+import idr.idr
+idr.idr.main()
