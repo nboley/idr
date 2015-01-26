@@ -9,12 +9,31 @@ from scipy.optimize import bisect, brentq
 
 import timeit
 
-#import pyximport; pyximport.install()
-from idr.inv_cdf import cdf, cdf_i, cdf_d1
+import pyximport; pyximport.install()
+from utility import (
+    py_compute_pseudo_values, compute_pseudo_values, 
+    simulate_values, py_cdf, py_cdf_i )
+from inv_cdf import cdf, cdf_i, cdf_d1, c_compute_pseudo_values, c_compute_pseudo_values_old
+def compute_pseudo_values(r, mu, sigma, rho):
+    z = numpy.zeros(len(r), dtype=float)
+    res = c_compute_pseudo_values(r, z, mu, sigma, rho)
+    return res
 
-import sympy
+def compute_pseudo_values_old(r, mu, sigma, rho):
+    z = numpy.zeros(len(r), dtype=float)
+    res = c_compute_pseudo_values_old(r, z, mu, sigma, rho)
+    return res
+
 
 def symbolic_computations():
+    """Infrastructure to calculate derivatices and integrals. 
+
+    This just does the algebra for us - I keep it here in case we want to
+    modify things or think that there may be an error. 
+    
+    Currently it's printing the first and second derivates of the inverse cdf. 
+    """
+    import sympy
     class GaussianPDF(sympy.Function):
         nargs = 3
         is_commutative = False
@@ -69,10 +88,12 @@ def symbolic_computations():
     sympy.pprint( r.diff(z).diff(z) )
     print( r.diff(z).diff(z) )
 
-def py_cdf(x, mu, sigma, lamda):
-    norm_x = (x-mu)/sigma
-    return 0.5*( (1-lamda)*erf(0.707106781186547461715*norm_x) 
-             + lamda*erf(0.707106781186547461715*x) + 1 )
+    return
+
+################################################################################
+#
+# Code to calculate derivatives for higher order convergence
+#
 
 def FD_d1(x, mu, sigma, lamda):
     return (py_cdf(x+1e-6, mu, sigma, lamda) - py_cdf(x-1e-6, mu, sigma, lamda))/2e-6
@@ -106,19 +127,18 @@ def py_cdf_d1_and_2(x, mu, sigma, lamda):
     d2 = -pre*(x*noise + (norm_x/(sigma**2))*signal)
     return d1, d2
 
+def test_deriv():
+    for x in range(10):
+        print( py_cdf_d1_simple( x, 0, 1, 0.5 ) )
+        print( py_cdf_d1( x, 0, 1, 0.5 ) )
+        print( cdf_d1( x, 0, 1, 0.5 ))
+        print( FD_d1( x, 0, 1, 0.5 ) )
+        print()
 
-def py_cdf_i(r, mu, sigma, pi, lb, ub):
-    return brentq(lambda x: cdf(x, mu, sigma, pi) - r, lb, ub)
-
-def compute_pseudo_values(ranks, signal_mu, signal_sd, p):
-    pseudo_values = []
-    for x in ranks:
-        new_x = float(x+1)/(len(ranks)+1)
-        pseudo_values.append( 
-            py_cdf_i( new_x, signal_mu, signal_sd, p, -10, 10 ) )
-
-    return numpy.array(pseudo_values)
-
+################################################################################
+#
+# Fixed point method functions
+#
 
 def nm_step(x, mu, sigma, lamda, r):
     f = py_cdf(x, mu, sigma, lamda) - r
@@ -133,12 +153,13 @@ def halley_step(x, mu, sigma, lamda, r):
     num = 2*f*d1
     denom = 2*d1*d1 - f*d2
     #print "Halley", num, denom, "d1", d1, "f", f, "d2", d2
-    return x - num/denom
+    return x - num/(5*denom)
+
 
 def main():
-    mu, sigma, lamda = 3, 1, 0.9
+    mu, sigma, lamda = 1, 1, 0.9
     r = 1e-1
-    new_x, x = r*mu, 1e9
+    new_x, x = -1.2, 1e9
     i = 0
     while i < 50 and abs(x - new_x) > 1e-6:
         x = new_x
@@ -148,43 +169,22 @@ def main():
 
     print( r-cdf( x, mu, sigma, lamda ), r, cdf( x, mu, sigma, lamda ) )
 
-def test_deriv():
-    for x in range(10):
-        print( py_cdf_d1_simple( x, 0, 1, 0.5 ) )
-        print( py_cdf_d1( x, 0, 1, 0.5 ) )
-        print( cdf_d1( x, 0, 1, 0.5 ))
-        print( FD_d1( x, 0, 1, 0.5 ) )
-        print()
+main()
+assert False
 
-
-def simulate_values(N, params):
-    mu, sigma, rho, p = params
-    signal_sim_values = numpy.random.multivariate_normal(
-        numpy.array((mu,mu)), 
-        numpy.array(((sigma,rho), (rho,sigma))), 
-        int(N*p) )
-    noise_sim_values = numpy.random.multivariate_normal(
-        numpy.array((0,0)), 
-        numpy.array(((1,0), (0,1))), 
-        N - int(N*p) )
-    sim_values = numpy.vstack((signal_sim_values, noise_sim_values))
-    sim_values = (sim_values[:,0], sim_values[:,1])
-    
-    return [x.argsort().argsort() for x in sim_values], sim_values
-
-
-params = (0, 1, 0.0, 0.5)
+params = (1, 1, 0.9, 0.5)
 (r1_ranks, r2_ranks), (r1_values, r2_values) = simulate_values(
     10000, params)
 
 def t1():
-    return compute_pseudo_values(r1_ranks, 1, 1, 0.5)
+    return compute_pseudo_values_old(r1_ranks, 1, 1, 0.5)
 
 def t2():
-    return py_compute_pseudo_values(r1_ranks, 1, 1, 0.5)
-
+    return compute_pseudo_values(r1_ranks, 1, 1, 0.5)
+    
 #print( timeit.timeit( "t1()", number=10, setup="from __main__ import t1"  ) )
-#print timeit.timeit( "t2()", number=10, setup="from __main__ import t2"  )
+
+#print( timeit.timeit( "t2()", number=10, setup="from __main__ import t2"  ) )
 
 #test_i_cdf()
 

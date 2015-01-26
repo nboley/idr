@@ -16,11 +16,12 @@ Peak = namedtuple('Peak', ['chrm', 'strand', 'start', 'stop', 'signal'])
 
 VERBOSE = False
 QUIET = False
+PROFILE = False
 
 IGNORE_NONOVERLAPPING_PEAKS = False
 
 MAX_ITER_DEFAULT = 1000
-CONVERGENCE_EPS_DEFAULT = 1e-10
+CONVERGENCE_EPS_DEFAULT = 1e-6
 
 DEFAULT_MU = 2.0
 DEFAULT_SIGMA = 0.8
@@ -119,7 +120,8 @@ def build_rank_vectors(merged_peaks):
     rank1 = numpy.lexsort((numpy.random.random(len(s1)), s1)).argsort()
     rank2 = numpy.lexsort((numpy.random.random(len(s2)), s2)).argsort()
     
-    return numpy.array(rank1, dtype='i'), numpy.array(rank2, dtype='i')
+    return ( numpy.array(rank1, dtype=numpy.int), 
+             numpy.array(rank2, dtype=numpy.int) )
 
 def build_idr_output_line(
     contig, strand, signals, merged_peak, IDR, localIDR):
@@ -181,11 +183,28 @@ def fit_model_and_calc_idr(r1, r2,
     
     # fit the model parameters    
     log("Fitting the model parameters", 'VERBOSE');
-    theta, loss = estimate_model_params(r1, r2, 
-                                        starting_point, 
-                                        max_iter=max_iter, 
-                                        convergence_eps=convergence_eps,
-                                        fix_mu=fix_mu, fix_sigma=fix_sigma)
+    if PROFILE:
+            import cProfile
+            cProfile.runctx("""theta, loss = estimate_model_params(
+                                    r1,r2,
+                                    starting_point, 
+                                    max_iter=max_iter, 
+                                    convergence_eps=convergence_eps,
+                                    fix_mu=fix_mu, fix_sigma=fix_sigma)
+                                   """, 
+                            {'estimate_model_params': estimate_model_params}, 
+                            {'r1':r1, 'r2':r2, 
+                             'starting_point': starting_point,
+                             'max_iter': max_iter, 
+                             'convergence_eps': convergence_eps,
+                             'fix_mu': fix_mu, 'fix_sigma': fix_sigma} )
+            assert False
+    theta, loss = estimate_model_params(
+        r1, r2,
+        starting_point, 
+        max_iter=max_iter, 
+        convergence_eps=convergence_eps,
+        fix_mu=fix_mu, fix_sigma=fix_sigma)
     
     log("Finished running IDR on the datasets", 'VERBOSE')
     log("Final parameter values: %s" % " ".join("%.2f" % x for x in theta))
@@ -284,10 +303,13 @@ Contact: Nikhil R Podduturi <nikhilrp@stanford.edu>
                          % DEFAULT_MIX_PARAM)
 
 
-    parser.add_argument( '--max-iter', type=int, default=5000, 
-        help="The maximum number of optimization iterations.")
-    parser.add_argument( '--convergence-eps', type=float, default=1e-10, 
-        help="The maximum change in parameter value changes for convergence.")
+    parser.add_argument( '--max-iter', type=int, default=MAX_ITER_DEFAULT, 
+        help="The maximum number of optimization iterations. Default: %i" 
+                         % MAX_ITER_DEFAULT)
+    parser.add_argument( '--convergence-eps', type=float, 
+                         default=CONVERGENCE_EPS_DEFAULT, 
+        help="The maximum change in parameter value changes for convergence. Default: %.2e" 
+                         % CONVERGENCE_EPS_DEFAULT)
 
     parser.add_argument( '--only-merge-peaks', action='store_true', 
         help="Only return the merged peak list.")    

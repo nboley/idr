@@ -2,12 +2,14 @@ import os, sys
 from setuptools import setup, Extension, find_packages
 
 try:
-    from Cython.Setup import cythonize
+    from Cython.Build import cythonize
     extensions = cythonize([
         Extension("idr.inv_cdf", 
                   ["idr/inv_cdf.pyx", ]),
     ])
 except ImportError:
+    raise
+    print( "Cython not installed: reverting to c version")
     extensions = [
         Extension("idr.inv_cdf", 
                   ["idr/inv_cdf.c", ]),

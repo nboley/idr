@@ -25,26 +25,37 @@ def simulate_values(N, params):
     
     return [x.argsort().argsort() for x in sim_values], sim_values
 
-# import the inverse cdf functions
-try: 
-    #import pyximport; pyximport.install()
-    from idr.inv_cdf import cdf, cdf_i
-except ImportError:
-    print( "WARNING: Cython does not appear to be installed - falling back to much slower python method." )
-    def cdf(x, mu, sigma, pi):
-        norm_x = (x-mu)/sigma
-        return 0.5*( pi*erf(0.707106781186547461715*norm_x) 
-                 + (1-pi)*erf(0.707106781186547461715*x) + 1 )
-    def cdf_i(r, mu, sigma, pi, lb, ub):
-        return brentq(lambda x: cdf(x, mu, sigma, pi) - r, lb, ub)
 
-def compute_pseudo_values(ranks, signal_mu, signal_sd, p):
+
+def py_cdf(x, mu, sigma, lamda):
+    norm_x = (x-mu)/sigma
+    return 0.5*( (1-lamda)*erf(0.707106781186547461715*norm_x) 
+             + lamda*erf(0.707106781186547461715*x) + 1 )
+
+def py_cdf_i(r, mu, sigma, pi, lb, ub):
+    return brentq(lambda x: cdf(x, mu, sigma, pi) - r, lb, ub)
+
+def py_compute_pseudo_values(ranks, signal_mu, signal_sd, p):
     pseudo_values = []
     for x in ranks:
         new_x = float(x+1)/(len(ranks)+1)
         pseudo_values.append( cdf_i( new_x, signal_mu, signal_sd, p, -10, 10 ) )
 
     return numpy.array(pseudo_values)
+
+# import the inverse cdf functions
+try: 
+    from idr.inv_cdf import cdf, cdf_i, c_compute_pseudo_values
+    def compute_pseudo_values(r, mu, sigma, rho):
+        z = numpy.zeros(len(r), dtype=float)
+        res = c_compute_pseudo_values(r, z, mu, sigma, rho)
+        return res
+except ImportError:
+    print( "WARNING: Cython does not appear to be installed." +
+           "- falling back to much slower python method." )
+    cdf = py_cdf
+    cdf_i = py_cdf_i
+    compute_pseudo_values = py_compute_pseudo_values
 
 
 def calc_gaussian_lhd(mu_1, mu_2, sigma_1, sigma_2, rho, z1, z2):

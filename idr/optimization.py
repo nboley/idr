@@ -312,15 +312,15 @@ def find_local_maximum_PV(r1, r2, theta, N=100, EPS=1e-6,
 
 
 def EM_iteration(z1, z2, prev_theta, max_iter,
-                 fix_mu=False, fix_sigma=False):
+                 fix_mu=False, fix_sigma=False, eps=1e-12):
     init_lhd = calc_gaussian_mix_log_lhd(prev_theta, z1, z2)
     prev_lhd = init_lhd
     for i in range(max_iter):
         theta = EM_step(
             z1, z2, prev_theta, fix_mu=fix_mu, fix_sigma=fix_sigma)
         new_lhd = calc_gaussian_mix_log_lhd(theta, z1, z2)
-        assert new_lhd >= prev_lhd
-        if new_lhd - prev_lhd < 1e-6:
+        assert new_lhd + 1e-6 >= prev_lhd
+        if new_lhd - prev_lhd < eps:
             return theta, new_lhd, i
         else:
             prev_theta = theta
@@ -341,7 +341,8 @@ def EMP_with_pseudo_value_algorithm(
     for i in range(N):
         prev_theta = theta
         theta, new_lhd, n_iter = EM_iteration(
-            z1, z2, prev_theta, 100, fix_mu=fix_mu, fix_sigma=fix_sigma)
+            z1, z2, prev_theta, 100, 
+            fix_mu=fix_mu, fix_sigma=fix_sigma, eps=EPS/10)
         
         sum_param_change = numpy.abs(theta - prev_theta).sum()
 
@@ -356,10 +357,10 @@ def EMP_with_pseudo_value_algorithm(
             print( ("Iter %i" % i).ljust(12), 
                    "%.2e" % sum_param_change,
                    "%.2e" % mean_pseudo_val_change,
-                   "%.4e" % log_lhd_loss(r1, r2, theta),
+                   #"%.4e" % log_lhd_loss(r1, r2, theta),
                    theta)
         
-        if i > 3 and mean_pseudo_val_change < EPS: 
+        if i > 3 and (sum_param_change < EPS and mean_pseudo_val_change < EPS): 
             break
     
     return theta, log_lhd_loss(r1, r2, theta)
