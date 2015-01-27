@@ -27,6 +27,8 @@ VERBOSE = False
 MIN_MIX_PARAM = 0.001
 MAX_MIX_PARAM = 0.999
 
+MIN_RHO = 0.10
+
 from idr.utility import (
     compute_pseudo_values, 
     calc_post_membership_prbs, 
@@ -325,6 +327,9 @@ def EM_iteration(z1, z2, prev_theta, max_iter,
             theta[3] = MIN_MIX_PARAM
         elif theta[3] > MAX_MIX_PARAM:
             theta[3] = MAX_MIX_PARAM
+
+        if theta[2] < MIN_RHO:
+            theta[2] = MIN_RHO
         
         new_lhd = calc_gaussian_mix_log_lhd(theta, z1, z2)
         assert new_lhd + 1e-6 >= prev_lhd
