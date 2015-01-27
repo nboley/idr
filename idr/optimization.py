@@ -28,6 +28,7 @@ MIN_MIX_PARAM = 0.001
 MAX_MIX_PARAM = 0.999
 
 MIN_RHO = 0.10
+MAX_RHO = 0.99
 
 from idr.utility import (
     compute_pseudo_values, 
@@ -316,6 +317,19 @@ def find_local_maximum_PV(r1, r2, theta, N=100, EPS=1e-6,
     return theta, curr_loss
 
 
+def clip_model_params(init_theta):
+    theta = init_theta.copy()
+    if theta[3] < MIN_MIX_PARAM:
+        theta[3] = MIN_MIX_PARAM
+    elif theta[3] > MAX_MIX_PARAM:
+        theta[3] = MAX_MIX_PARAM
+        
+    if theta[2] < MIN_RHO:
+        theta[2] = MIN_RHO
+    elif theta[2] > MAX_RHO:
+        theta[2] = MAX_RHO
+    return theta, not (theta == init_theta).all()
+
 def EM_iteration(z1, z2, prev_theta, max_iter,
                  fix_mu=False, fix_sigma=False, eps=1e-12):
     """Fit the gaussian model params via EM.
@@ -326,21 +340,16 @@ def EM_iteration(z1, z2, prev_theta, max_iter,
     for i in range(max_iter):
         theta = EM_step(
             z1, z2, prev_theta, fix_mu=fix_mu, fix_sigma=fix_sigma)
-        if theta[3] < MIN_MIX_PARAM:
-            theta[3] = MIN_MIX_PARAM
-        elif theta[3] > MAX_MIX_PARAM:
-            theta[3] = MAX_MIX_PARAM
-
-        if theta[2] < MIN_RHO:
-            theta[2] = MIN_RHO
+        theta, changed_params = clip_model_params(theta)
         
         new_lhd = calc_gaussian_mix_log_lhd(theta, z1, z2)
-        assert new_lhd + 1e-6 >= prev_lhd
-        if new_lhd - prev_lhd < eps:
-            return theta, new_lhd, i+1
-        else:
-            prev_theta = theta
-            prev_lhd = new_lhd
+        if not changed_params:
+            assert new_lhd + 1e-6 >= prev_lhd
+            if new_lhd - prev_lhd < eps:
+                return theta, new_lhd, i+1
+        
+        prev_theta = theta
+        prev_lhd = new_lhd
     
     #print( "WARNING: EM step failed to converge in under %i iterations" 
     #       % max_iter )
