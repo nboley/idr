@@ -318,6 +318,9 @@ def find_local_maximum_PV(r1, r2, theta, N=100, EPS=1e-6,
 
 def EM_iteration(z1, z2, prev_theta, max_iter,
                  fix_mu=False, fix_sigma=False, eps=1e-12):
+    """Fit the gaussian model params via EM.
+
+    """
     init_lhd = calc_gaussian_mix_log_lhd(prev_theta, z1, z2)
     prev_lhd = init_lhd
     for i in range(max_iter):
@@ -334,27 +337,30 @@ def EM_iteration(z1, z2, prev_theta, max_iter,
         new_lhd = calc_gaussian_mix_log_lhd(theta, z1, z2)
         assert new_lhd + 1e-6 >= prev_lhd
         if new_lhd - prev_lhd < eps:
-            return theta, new_lhd, i
+            return theta, new_lhd, i+1
         else:
             prev_theta = theta
             prev_lhd = new_lhd
     
-    print( "WARNING: EM step failed to converge in under %i iterations" 
-           % max_iter )
-    return theta, new_lhd, i
+    #print( "WARNING: EM step failed to converge in under %i iterations" 
+    #       % max_iter )
+    return theta, new_lhd, i+1
 
 
 def EMP_with_pseudo_value_algorithm(
-        r1, r2, theta_0, N=100, EPS=1e-4, 
+        r1, r2, theta_0, 
+        N=100, EPS=1e-4, 
         fix_mu=False, fix_sigma=False):
-    theta = theta_0    
+    theta = theta_0
     z1 = compute_pseudo_values(r1, theta[0], theta[1], theta[3])
     z2 = compute_pseudo_values(r2, theta[0], theta[1], theta[3])
 
+    max_num_EM_iter = 30
+    
     for i in range(N):
         prev_theta = theta
-        theta, new_lhd, n_iter = EM_iteration(
-            z1, z2, prev_theta, 1000, 
+        theta, new_lhd, num_EM_iter = EM_iteration(
+            z1, z2, prev_theta, max_num_EM_iter, 
             fix_mu=fix_mu, fix_sigma=fix_sigma, eps=EPS/10)
         
         sum_param_change = numpy.abs(theta - prev_theta).sum()
@@ -374,7 +380,11 @@ def EMP_with_pseudo_value_algorithm(
                    theta)
         
         if i > 3 and (sum_param_change < EPS and mean_pseudo_val_change < EPS): 
-            break
+            if num_EM_iter >= max_num_EM_iter:
+                max_num_EM_iter *= 2
+                print( "WARNING: params appear to have converged but EM hasn't converged - increasing number of EM iterations to %i" % max_num_EM_iter )
+            else:
+                break
     
     return theta, log_lhd_loss(r1, r2, theta)
 
