@@ -5,6 +5,8 @@ from scipy.optimize import brentq
 
 import math
 
+DEFAULT_PV_COVERGE_EPS = 1e-8
+
 def simulate_values(N, params):
     """Simulate ranks and values from a mixture of gaussians
 
@@ -35,20 +37,22 @@ def py_cdf(x, mu, sigma, lamda):
 def py_cdf_i(r, mu, sigma, pi, lb, ub):
     return brentq(lambda x: cdf(x, mu, sigma, pi) - r, lb, ub)
 
-def py_compute_pseudo_values(ranks, signal_mu, signal_sd, p):
+def py_compute_pseudo_values(ranks, signal_mu, signal_sd, p, 
+                             EPS=DEFAULT_PV_COVERGE_EPS):
     pseudo_values = []
     for x in ranks:
         new_x = float(x+1)/(len(ranks)+1)
-        pseudo_values.append( cdf_i( new_x, signal_mu, signal_sd, p, -10, 10 ) )
+        pseudo_values.append( cdf_i( new_x, signal_mu, signal_sd, p, 
+                                     -10, 10, EPS ) )
 
     return numpy.array(pseudo_values)
 
 # import the inverse cdf functions
 try: 
     from idr.inv_cdf import cdf, cdf_i, c_compute_pseudo_values
-    def compute_pseudo_values(r, mu, sigma, rho):
+    def compute_pseudo_values(r, mu, sigma, rho, EPS=DEFAULT_PV_COVERGE_EPS):
         z = numpy.zeros(len(r), dtype=float)
-        res = c_compute_pseudo_values(r, z, mu, sigma, rho)
+        res = c_compute_pseudo_values(r, z, mu, sigma, rho, EPS)
         return res
 except ImportError:
     print( "WARNING: Cython does not appear to be installed." +

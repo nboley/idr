@@ -157,18 +157,17 @@ def calc_IDR(theta, r1, r2):
     IDR[o] <- IDR.o
     """
     mu, sigma, rho, p = theta
-    z1 = compute_pseudo_values(r1, mu, sigma, p)
-    z2 = compute_pseudo_values(r2, mu, sigma, p)
-    localIDR = 1 - calc_post_membership_prbs(numpy.array(theta), z1, z2)
-    local_idr_order = localIDR.argsort()
+    z1 = compute_pseudo_values(r1, mu, sigma, p, EPS=1e-12)
+    z2 = compute_pseudo_values(r2, mu, sigma, p, EPS=1e-12)
+    localIDR = 1-calc_post_membership_prbs(numpy.array(theta), z1, z2)
+    local_idr_order = (-localIDR).argsort()
     ordered_local_idr = localIDR[local_idr_order]
-    ordered_local_idr_ranks = rankdata( ordered_local_idr, method='max' )
+    ordered_local_idr_ranks = rankdata( -ordered_local_idr, method='max' )
     IDR = []
-    for rank in ordered_local_idr_ranks:
-        IDR.append(ordered_local_idr[:rank].mean())
+    for i, rank in enumerate(ordered_local_idr_ranks):
+        IDR.append(ordered_local_idr[-rank:].mean())
     IDR = numpy.array(IDR)
-
-    return localIDR, IDR[local_idr_order]
+    return localIDR, IDR[-local_idr_order]
 
 def fit_model_and_calc_idr(r1, r2, 
                            starting_point=None,
