@@ -1,17 +1,20 @@
 import os, sys
 
+import gzip, io
+
 import math
 
 import numpy
 
 from scipy.stats.stats import rankdata
 
+from collections import namedtuple, defaultdict, OrderedDict
+from itertools import chain
+
 def mean(items):
     items = list(items)
     return sum(items)/float(len(items))
 
-from collections import namedtuple, defaultdict, OrderedDict
-from itertools import chain
 Peak = namedtuple('Peak', ['chrm', 'strand', 'start', 'stop', 'signal'])
 
 VERBOSE = False
@@ -259,10 +262,16 @@ Contact: Nikhil R Podduturi <nikhilrp@stanford.edu>
 
 """)
 
-    parser.add_argument( '-a', type=argparse.FileType("r"), required=True,
+    def PossiblyGzippedFile(fname):
+        if fname.endswith(".gz"):
+            return io.TextIOWrapper(gzip.open(fname, 'rb'))
+        else:
+            return open(fname, 'r')
+    
+    parser.add_argument( '-a', type=PossiblyGzippedFile, required=True,
         help='narrowPeak or broadPeak file containing peaks from sample 1.')
 
-    parser.add_argument( '-b', type=argparse.FileType("r"), required=True,
+    parser.add_argument( '-b', type=PossiblyGzippedFile, required=True,
         help='narrowPeak or broadPeak file containing peaks from sample 2.')
 
     default_ofname = "idrValues.txt"
