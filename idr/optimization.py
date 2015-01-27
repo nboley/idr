@@ -24,6 +24,9 @@ VERBOSE = False
 #(calc_gaussian_mix_log_lhd, calc_gaussian_mix_log_lhd_gradient
 # ) = symbolic.build_mixture_loss_and_grad()
 
+MIN_MIX_PARAM = 0.001
+MAX_MIX_PARAM = 0.999
+
 from idr.utility import (
     compute_pseudo_values, 
     calc_post_membership_prbs, 
@@ -318,6 +321,11 @@ def EM_iteration(z1, z2, prev_theta, max_iter,
     for i in range(max_iter):
         theta = EM_step(
             z1, z2, prev_theta, fix_mu=fix_mu, fix_sigma=fix_sigma)
+        if theta[3] < MIN_MIX_PARAM:
+            theta[3] = MIN_MIX_PARAM
+        elif theta[3] > MAX_MIX_PARAM:
+            theta[3] = MAX_MIX_PARAM
+        
         new_lhd = calc_gaussian_mix_log_lhd(theta, z1, z2)
         assert new_lhd + 1e-6 >= prev_lhd
         if new_lhd - prev_lhd < eps:
@@ -341,7 +349,7 @@ def EMP_with_pseudo_value_algorithm(
     for i in range(N):
         prev_theta = theta
         theta, new_lhd, n_iter = EM_iteration(
-            z1, z2, prev_theta, 100, 
+            z1, z2, prev_theta, 1000, 
             fix_mu=fix_mu, fix_sigma=fix_sigma, eps=EPS/10)
         
         sum_param_change = numpy.abs(theta - prev_theta).sum()
