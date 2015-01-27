@@ -170,8 +170,11 @@ def calc_IDR(theta, r1, r2):
     IDR = []
     for i, rank in enumerate(ordered_local_idr_ranks):
         IDR.append(ordered_local_idr[:rank].mean())
-    IDR = numpy.array(IDR)
-    return localIDR, IDR[local_idr_order.argsort()]
+    IDR = numpy.array(IDR)[local_idr_order.argsort()]
+    if FILTER_PEAKS_BELOW_NOISE_MEAN:
+        IDR[z1 + z2 < 0] = (1-p) + p*IDR[z1 + z2 < 0]
+
+    return localIDR, IDR
 
 def fit_model_and_calc_idr(r1, r2, 
                            starting_point=None,
