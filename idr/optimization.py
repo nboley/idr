@@ -344,7 +344,8 @@ def EM_iteration(z1, z2, prev_theta, max_iter,
         
         new_lhd = calc_gaussian_mix_log_lhd(theta, z1, z2)
         if not changed_params:
-            assert new_lhd + 1e-6 >= prev_lhd
+            if not fix_sigma and not fix_mu:
+                assert new_lhd + 1e-6 >= prev_lhd
             if new_lhd - prev_lhd < eps:
                 return theta, new_lhd, i+1
         
