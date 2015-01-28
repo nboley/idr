@@ -1,15 +1,23 @@
-Peak = namedtuple('Peak', ['chrm', 'strand', 'start', 'stop', 'signal'])
+import sys
 
-def log(msg, level=None):
+DEBUG_LEVELS = {'ERROR', 'WARNING', None, 'VERBOSE', 'DEBUG'}
+
+log_ofp = sys.stderr
+def log(*args, level=None):
+    assert level in DEBUG_LEVELS
+    args = [str(x) for x in args]
+    if args[-1] in DEBUG_LEVELS: 
+        if level == None:
+            level = args[-1]
+        args = args[:-1]
     if QUIET: return
     if level == None or (level == 'VERBOSE' and VERBOSE):
-        print(msg, file=sys.stderr)
+        print(" ".join(args), file=log_ofp)
 
 ## Global config options
 VERBOSE = False
 QUIET = False
 PROFILE = False
-
 
 ## idr.py config options
 IGNORE_NONOVERLAPPING_PEAKS = False

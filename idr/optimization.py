@@ -233,12 +233,12 @@ def find_local_maximum_CA(r1, r2, theta,
                                    fix_mu=fix_mu, fix_sigma=fix_sigma)
 
         curr_loss = calc_loss(r1, r2, theta)
-        log( "".join( ( "CA%i\t" % i, 
-                        "%.2e" % gradient_magnitude, 
-                        "%.2e" % (curr_loss-prev_loss), 
-                        "%.8f\t" % curr_loss,
-                        "%.8f\t" % log_lhd_loss(r1, r2, theta),
-                        theta), level='VERBOSE' ) )
+        log( "CA%i\t" % i, 
+             "%.2e" % gradient_magnitude, 
+             "%.2e" % (curr_loss-prev_loss), 
+             "%.8f\t" % curr_loss,
+             "%.8f\t" % log_lhd_loss(r1, r2, theta),
+             theta, level='VERBOSE' )
 
         # find the em estimate 
         mu, sigma, rho, p = theta
@@ -378,12 +378,11 @@ def EMP_with_pseudo_value_algorithm(
         mean_pseudo_val_change = (
             numpy.abs(prev_z1-z1).mean() + numpy.abs(prev_z2-z2).mean())
         
-        msg = " ".join((("Iter %i" % i).ljust(12), 
-                        "%.2e" % sum_param_change,
-                        "%.2e" % mean_pseudo_val_change,
-                        #"%.4e" % log_lhd_loss(r1, r2, theta),
-                        theta))
-        log(msg, level='VERBOSE')
+        log(("Iter %i" % i).ljust(12),
+            "%.2e" % sum_param_change,
+            "%.2e" % mean_pseudo_val_change,
+            #"%.4e" % log_lhd_loss(r1, r2, theta),
+            theta, level='VERBOSE')
         
         if i > 3 and (sum_param_change < EPS and mean_pseudo_val_change < EPS): 
             if num_EM_iter >= max_num_EM_iter and max_num_EM_iter < 1000:
@@ -423,8 +422,6 @@ def main():
         r1_ranks, r2_ranks, starting_point, 
         fix_mu=False, fix_sigma=False)
         
-    print( "NEW", theta, log_lhd)
-    
     return
 
 
