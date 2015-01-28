@@ -269,6 +269,10 @@ Contact: Nathan Boley <npboley@gmail.com>
                          default=open(default_ofname, "w"), 
         help='File to write output to. default: {}'.format(default_ofname))
 
+    parser.add_argument( '--log-output-file', "-l", type=argparse.FileType("w"),
+                         default=sys.stderr,
+                         help='File to write output to. default: stderr')
+
     parser.add_argument( '--idr', "-i", type=float, default=1.0, 
         help='Only report peaks with a global idr threshold below this value. Default: report all peaks')
 
@@ -285,11 +289,6 @@ Contact: Nathan Boley <npboley@gmail.com>
         help="Which method to use for merging peaks.\n" \
               + "\tDefault: 'mean' for signal, 'min' for p/q-value.")
 
-    parser.add_argument( '--fix-mu', action='store_true', 
-        help="Fix mu to the starting point and do not let it vary.")    
-    parser.add_argument( '--fix-sigma', action='store_true', 
-        help="Fix sigma to the starting point and do not let it vary.")    
-
     parser.add_argument( '--initial-mu', type=float, default=idr.DEFAULT_MU,
         help="Initial value of mu. Default: %.2f" % idr.DEFAULT_MU)
     parser.add_argument( '--initial-sigma', type=float, 
@@ -302,7 +301,11 @@ Contact: Nathan Boley <npboley@gmail.com>
         help="Initial value of the mixture params. Default: %.2f" \
                          % idr.DEFAULT_MIX_PARAM)
 
-
+    parser.add_argument( '--fix-mu', action='store_true', 
+        help="Fix mu to the starting point and do not let it vary.")    
+    parser.add_argument( '--fix-sigma', action='store_true', 
+        help="Fix sigma to the starting point and do not let it vary.")    
+    
     parser.add_argument( '--max-iter', type=int, default=idr.MAX_ITER_DEFAULT, 
         help="The maximum number of optimization iterations. Default: %i" 
                          % idr.MAX_ITER_DEFAULT)
@@ -322,6 +325,8 @@ Contact: Nathan Boley <npboley@gmail.com>
 
     args = parser.parse_args()
 
+    idr.log_ofp = args.log_output_file
+    
     if args.verbose: 
         idr.VERBOSE = True 
 
@@ -385,4 +390,7 @@ def main():
     args.output_file.close()
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    finally:
+        if idr.log_ofp != sys.stderr: idr.log_ofp.close()

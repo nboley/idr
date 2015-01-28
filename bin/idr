@@ -2,7 +2,12 @@
 import os, sys
 
 if sys.version_info.major <= 2:
-   raise ValueError( "IDR requires python version 3 or higher" )
+    raise ValueError( "IDR requires python version 3 or higher" )
 
+import idr
 import idr.idr
-idr.idr.main()
+try:
+    idr.idr.main()
+finally:
+    if idr.log_ofp != sys.stderr:
+       idr.log_ofp.close()
