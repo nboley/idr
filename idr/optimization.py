@@ -6,8 +6,6 @@ import numpy
 
 import math
 
-VERBOSE = False
-
 ## These functions calcualte the the pseudo_lhd and pseudo_gradient,
 ## that is they calculate the derivative through G^-1
 ## 
@@ -23,16 +21,7 @@ VERBOSE = False
 #import symbolic
 #(calc_gaussian_mix_log_lhd, calc_gaussian_mix_log_lhd_gradient
 # ) = symbolic.build_mixture_loss_and_grad()
-
-MIN_MIX_PARAM = 0.01
-MAX_MIX_PARAM = 0.99
-
-MIN_RHO = 0.20
-MAX_RHO = 0.99
-
-MIN_SIGMA = 0.20
-
-MIN_MU = 0.0
+from idr import *
 
 from idr.utility import (
     compute_pseudo_values, 
@@ -178,7 +167,7 @@ def coordinate_ascent(r1, r2, theta, gradient_magnitude,
             else:
                 init_alpha *= 10         
 
-        #print( pos - prev_loss, neg - prev_loss )
+        #log( pos - prev_loss, neg - prev_loss )
         assert init_alpha < 1e-1
         
         min_step = 0
@@ -193,7 +182,7 @@ def coordinate_ascent(r1, r2, theta, gradient_magnitude,
         
         
         loss = calc_loss( r1, r2, theta + alpha*gradient )
-        #print( "LOSS:", loss, prev_loss, loss-prev_loss )
+        #log( "LOSS:", loss, prev_loss, loss-prev_loss )
         if loss < prev_loss:
             theta += alpha*gradient
 
@@ -244,13 +233,12 @@ def find_local_maximum_CA(r1, r2, theta,
                                    fix_mu=fix_mu, fix_sigma=fix_sigma)
 
         curr_loss = calc_loss(r1, r2, theta)
-        if VERBOSE:
-            print( "CA%i\t" % i, 
-                   "%.2e" % gradient_magnitude, 
-                   "%.2e" % (curr_loss-prev_loss), 
-                   "%.8f\t" % curr_loss,
-                   "%.8f\t" % log_lhd_loss(r1, r2, theta),
-                   theta)
+        log( "".join( ( "CA%i\t" % i, 
+                        "%.2e" % gradient_magnitude, 
+                        "%.2e" % (curr_loss-prev_loss), 
+                        "%.8f\t" % curr_loss,
+                        "%.8f\t" % log_lhd_loss(r1, r2, theta),
+                        theta), level='VERBOSE' ) )
 
         # find the em estimate 
         mu, sigma, rho, p = theta
@@ -268,7 +256,7 @@ def find_local_maximum_CA(r1, r2, theta,
         z1 = compute_pseudo_values(r1, mu, sigma, p)
         z2 = compute_pseudo_values(r2, mu, sigma, p)
         grad = calc_pseudo_log_lhd_gradient(theta, z1, z2, False, False)
-        #print( "GRAD", grad )
+        #log( "GRAD", grad )
 
         if abs(curr_loss-prev_loss) < 1e-12:
             if gradient_magnitude > 1e-6:
@@ -301,14 +289,13 @@ def find_local_maximum_PV(r1, r2, theta, N=100, EPS=1e-6,
                 theta[j] = em_theta[j]
                 curr_loss = new_loss
         
-        if VERBOSE:
-            print( "CA%i\t" % i, 
-                   "%.2e" % gradient_magnitude, 
-                   "%.2e" % (curr_loss-prev_loss), 
-                   "%.8f\t" % curr_loss,
-                   "%.8f\t" % log_lhd_loss(r1, r2, theta),
-                   theta)
-
+        msg = " ".join(("CA%i\t" % i, 
+                        "%.2e" % gradient_magnitude, 
+                        "%.2e" % (curr_loss-prev_loss), 
+                        "%.8f\t" % curr_loss,
+                        "%.8f\t" % log_lhd_loss(r1, r2, theta),
+                        theta))
+        log( msg, level='VERBOSE' )
         
         mu, sigma, rho, p = theta
         z1 = compute_pseudo_values(r1, mu, sigma, p)
@@ -391,18 +378,17 @@ def EMP_with_pseudo_value_algorithm(
         mean_pseudo_val_change = (
             numpy.abs(prev_z1-z1).mean() + numpy.abs(prev_z2-z2).mean())
         
-        if VERBOSE:
-            print( ("Iter %i" % i).ljust(12), 
-                   "%.2e" % sum_param_change,
-                   "%.2e" % mean_pseudo_val_change,
-                   #"%.4e" % log_lhd_loss(r1, r2, theta),
-                   theta)
+        msg = " ".join((("Iter %i" % i).ljust(12), 
+                        "%.2e" % sum_param_change,
+                        "%.2e" % mean_pseudo_val_change,
+                        #"%.4e" % log_lhd_loss(r1, r2, theta),
+                        theta))
+        log(msg, level='VERBOSE')
         
         if i > 3 and (sum_param_change < EPS and mean_pseudo_val_change < EPS): 
             if num_EM_iter >= max_num_EM_iter and max_num_EM_iter < 1000:
                 max_num_EM_iter *= 2
-                if VERBOSE:
-                    print( "WARNING: params appear to have converged but EM hasn't converged - increasing number of EM iterations to %i (this may just mean that 1 of the parameters converged to a boundary)" % max_num_EM_iter )
+                log( "WARNING: params appear to have converged but EM hasn't converged - increasing number of EM iterations to %i (this may just mean that 1 of the parameters converged to a boundary)" % max_num_EM_iter, level='VERBOSE' )
             else:
                 break
     
@@ -430,7 +416,7 @@ def main():
             r2_values.append(float(r2))
     r1_ranks, r2_ranks = [(-numpy.array(x)).argsort().argsort() 
                           for x in (r1_values, r2_values)]
-    print( "Finished Loading Data" )
+    log( "Finished Loading Data", level='VERBOSE' )
     
     starting_point = numpy.array( params )
     theta, log_lhd = estimate_model_params(

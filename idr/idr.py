@@ -15,23 +15,7 @@ def mean(items):
     items = list(items)
     return sum(items)/float(len(items))
 
-Peak = namedtuple('Peak', ['chrm', 'strand', 'start', 'stop', 'signal'])
-
-VERBOSE = False
-QUIET = False
-PROFILE = False
-
-IGNORE_NONOVERLAPPING_PEAKS = False
-
-MAX_ITER_DEFAULT = 10000
-CONVERGENCE_EPS_DEFAULT = 1e-6
-
-DEFAULT_MU = 0.1
-DEFAULT_SIGMA = 1.0
-DEFAULT_RHO = 0.2
-DEFAULT_MIX_PARAM = 0.5
-
-FILTER_PEAKS_BELOW_NOISE_MEAN = True
+from IDR import *
 
 import idr.optimization
 from idr.optimization import estimate_model_params, old_estimator
@@ -358,11 +342,6 @@ Contact: Nikhil R Podduturi <nikhilrp@stanford.edu>
             args.peak_merge_method]
 
     return args, peak_merge_fn
-
-def log(msg, level=None):
-    if QUIET: return
-    if level == None or (level == 'VERBOSE' and VERBOSE):
-        print(msg, file=sys.stderr)
 
 def main():
     args, peak_merge_fn = parse_args()
