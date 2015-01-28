@@ -1,5 +1,7 @@
 import sys
 
+__version__ = "2.0.0beta1"
+
 DEBUG_LEVELS = {'ERROR', 'WARNING', None, 'VERBOSE', 'DEBUG'}
 
 log_ofp = sys.stderr

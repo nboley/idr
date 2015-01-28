@@ -15,12 +15,14 @@ except ImportError:
                   ["idr/inv_cdf.c", ]),
     ]
 
+import idr
+
 def main():
     if sys.version_info.major <= 2:
         raise ValueError( "IDR requires Python version 3 or higher" )
     setup(
         name = "idr",
-        version = "2.0.0beta1",
+        version = idr.__version__,
 
         author = "Nathan Boley",
         author_email = "npboley@gmail.com",

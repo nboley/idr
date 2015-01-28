@@ -244,13 +244,13 @@ def parse_args():
     import argparse
 
     parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description="""
 Program: IDR (Irreproducible Discovery Rate)
-Version: {PACKAGE_VERSION}\n
-Contact: Nikhil R Podduturi <nikhilrp@stanford.edu>
-         Nathan Boley <npboley@gmail.com>
-
-""")
+Version: {PACKAGE_VERSION}
+Contact: Nathan Boley <npboley@gmail.com>
+         Nikhil R Podduturi <nikhilrp@stanford.edu>
+""".format(PACKAGE_VERSION=idr.__version__))
 
     def PossiblyGzippedFile(fname):
         if fname.endswith(".gz"):
