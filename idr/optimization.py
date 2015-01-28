@@ -24,11 +24,15 @@ VERBOSE = False
 #(calc_gaussian_mix_log_lhd, calc_gaussian_mix_log_lhd_gradient
 # ) = symbolic.build_mixture_loss_and_grad()
 
-MIN_MIX_PARAM = 0.001
-MAX_MIX_PARAM = 0.999
+MIN_MIX_PARAM = 0.01
+MAX_MIX_PARAM = 0.99
 
-MIN_RHO = 0.10
+MIN_RHO = 0.20
 MAX_RHO = 0.99
+
+MIN_SIGMA = 0.20
+
+MIN_MU = 0.0
 
 from idr.utility import (
     compute_pseudo_values, 
@@ -319,15 +323,22 @@ def find_local_maximum_PV(r1, r2, theta, N=100, EPS=1e-6,
 
 def clip_model_params(init_theta):
     theta = init_theta.copy()
+    if theta[0] < MIN_MU:
+        theta[0] = MIN_MU
+
+    if theta[1] < MIN_SIGMA:
+        theta[1] = MIN_SIGMA
+
+    if theta[2] < MIN_RHO:
+        theta[2] = MIN_RHO
+    elif theta[2] > MAX_RHO:
+        theta[2] = MAX_RHO
+
     if theta[3] < MIN_MIX_PARAM:
         theta[3] = MIN_MIX_PARAM
     elif theta[3] > MAX_MIX_PARAM:
         theta[3] = MAX_MIX_PARAM
         
-    if theta[2] < MIN_RHO:
-        theta[2] = MIN_RHO
-    elif theta[2] > MAX_RHO:
-        theta[2] = MAX_RHO
     return theta, not (theta == init_theta).all()
 
 def EM_iteration(z1, z2, prev_theta, max_iter,
@@ -352,8 +363,6 @@ def EM_iteration(z1, z2, prev_theta, max_iter,
         prev_theta = theta
         prev_lhd = new_lhd
     
-    #print( "WARNING: EM step failed to converge in under %i iterations" 
-    #       % max_iter )
     return theta, new_lhd, i+1
 
 
@@ -390,9 +399,10 @@ def EMP_with_pseudo_value_algorithm(
                    theta)
         
         if i > 3 and (sum_param_change < EPS and mean_pseudo_val_change < EPS): 
-            if num_EM_iter >= max_num_EM_iter:
+            if num_EM_iter >= max_num_EM_iter and max_num_EM_iter < 1000:
                 max_num_EM_iter *= 2
-                print( "WARNING: params appear to have converged but EM hasn't converged - increasing number of EM iterations to %i" % max_num_EM_iter )
+                if VERBOSE:
+                    print( "WARNING: params appear to have converged but EM hasn't converged - increasing number of EM iterations to %i (this may just mean that 1 of the parameters converged to a boundary)" % max_num_EM_iter )
             else:
                 break
     
