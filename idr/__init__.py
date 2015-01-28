@@ -13,7 +13,8 @@ def log(*args, level=None):
             level = args[-1]
         args = args[:-1]
     if QUIET: return
-    if level == None or (level == 'VERBOSE' and VERBOSE):
+    if (level in ('ERROR', 'WARNING', None) 
+            or (level == 'VERBOSE' and VERBOSE)):
         print(" ".join(args), file=log_ofp)
 
 ## Global config options
@@ -31,6 +32,8 @@ DEFAULT_MU = 0.1
 DEFAULT_SIGMA = 1.0
 DEFAULT_RHO = 0.2
 DEFAULT_MIX_PARAM = 0.5
+
+DEFAULT_PLOT_IDR = 0.05
 
 FILTER_PEAKS_BELOW_NOISE_MEAN = True
 

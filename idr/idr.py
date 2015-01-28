@@ -224,7 +224,8 @@ def write_results_to_file(merged_peaks, output_file,
     for localIDR, IDR, merged_peak in zip(
             localIDRs, IDRs, merged_peaks):
         # skip peaks with global idr values below the threshold
-        if IDR > max_allowed_idr: continue
+        if max_allowed_idr != None and IDR > max_allowed_idr: 
+            continue
         num_peaks_passing_thresh += 1
         opline = build_idr_output_line(
             merged_peak[0], merged_peak[1], 
@@ -232,10 +233,11 @@ def write_results_to_file(merged_peaks, output_file,
             merged_peak[6], IDR, localIDR )
         print( opline, file=output_file )
 
-    idr.log("Number of peaks passing IDR cutoff of {} - {}/{} ({:.1f}%)\n".format(
-        max_allowed_idr, 
-        num_peaks_passing_thresh, len(merged_peaks),
-        100*float(num_peaks_passing_thresh)/len(merged_peaks))
+    idr.log(
+        "Number of peaks passing IDR cutoff of {} - {}/{} ({:.1f}%)\n".format(
+            max_allowed_idr, 
+            num_peaks_passing_thresh, len(merged_peaks),
+            100*float(num_peaks_passing_thresh)/len(merged_peaks))
     )
     
     return 
@@ -273,9 +275,16 @@ Contact: Nathan Boley <npboley@gmail.com>
                          default=sys.stderr,
                          help='File to write output to. default: stderr')
 
-    parser.add_argument( '--idr', "-i", type=float, default=1.0, 
+
+    parser.add_argument( '--idr', "-i", type=float, default=None, 
         help='Only report peaks with a global idr threshold below this value. Default: report all peaks')
 
+    parser.add_argument( '--plot', "-p", action='store_true', default=False,
+                         help='Plot the results to [OFNAME].png')
+    parser.add_argument( '--plot-idr', type=float, default=None, 
+        help='Color peaks below this value. default: --idr if set else %.2f' 
+                         % idr.DEFAULT_PLOT_IDR)
+    
     parser.add_argument( '--rank', default="signal.value",
                          choices=["signal.value", "p.value", "q.value"],
                          help='Type of ranking measure to use.')
@@ -334,9 +343,22 @@ Contact: Nathan Boley <npboley@gmail.com>
     if args.quiet: 
         idr.QUIET = True 
         idr.VERBOSE = False
-    
-    idr.IGNORE_NONOVERLAPPING_PEAKS = not args.use_nonoverlapping_peaks
 
+    if args.plot:
+        try: 
+            import matplotlib.pyplot as plt
+            if args.plot_idr == None:
+                if args.idr != None:
+                    args.plot_idr = args.idr
+                else:
+                    args.plot_idr = idr.DEFAULT_PLOT_IDR
+        except ImportError:
+            log("WARNING: matplotlib does not appear to be installed and is required for plotting - turning plotting off.", level="WARNING" )
+            args.plot = False
+            raise
+        
+    idr.IGNORE_NONOVERLAPPING_PEAKS = not args.use_nonoverlapping_peaks
+    
     # decide what aggregation function to use for peaks that need to be merged
     if args.peak_merge_method == None:
         peak_merge_fn = {"signal.value": mean, "q.value": mean, "p.value": mean}[
@@ -381,6 +403,21 @@ def main():
             max_iter=args.max_iter,
             convergence_eps=args.convergence_eps,
             fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
+        
+        if args.plot:
+            import matplotlib.pyplot as plt
+            colors = numpy.full(len(r1), 'k', dtype=str)
+            colors[IDRs < args.plot_idr] = 'r'
+
+            plt.axis([0, 1, 0, 1])
+            plt.xlabel(args.a.name)
+            plt.ylabel(args.b.name)
+            plt.title("IDR Ranks - (red <= %.2f)" % args.plot_idr)
+            plt.scatter((r1+1)/float(len(r1)+1), 
+                        (r2+1)/float(len(r2)+1), 
+                        c=colors,
+                        alpha=0.05)
+            plt.savefig(args.output_file.name + ".png")
     
     write_results_to_file(merged_peaks, 
                           args.output_file, 
