@@ -346,7 +346,7 @@ Contact: Nathan Boley <npboley@gmail.com>
 
     if args.plot:
         try: 
-            import matplotlib.pyplot as plt
+            import matplotlib
             if args.plot_idr == None:
                 if args.idr != None:
                     args.plot_idr = args.idr
@@ -405,19 +405,22 @@ def main():
             fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
         
         if args.plot:
-            import matplotlib.pyplot as plt
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot
+            
             colors = numpy.full(len(r1), 'k', dtype=str)
             colors[IDRs < args.plot_idr] = 'r'
 
-            plt.axis([0, 1, 0, 1])
-            plt.xlabel(args.a.name)
-            plt.ylabel(args.b.name)
-            plt.title("IDR Ranks - (red <= %.2f)" % args.plot_idr)
-            plt.scatter((r1+1)/float(len(r1)+1), 
-                        (r2+1)/float(len(r2)+1), 
-                        c=colors,
-                        alpha=0.05)
-            plt.savefig(args.output_file.name + ".png")
+            matplotlib.pyplot.axis([0, 1, 0, 1])
+            matplotlib.pyplot.xlabel(args.a.name)
+            matplotlib.pyplot.ylabel(args.b.name)
+            matplotlib.pyplot.title("IDR Ranks - (red <= %.2f)" % args.plot_idr)
+            matplotlib.pyplot.scatter((r1+1)/float(len(r1)+1), 
+                                      (r2+1)/float(len(r2)+1), 
+                                      c=colors,
+                                      alpha=0.05)
+            matplotlib.pyplot.savefig(args.output_file.name + ".png")
     
     write_results_to_file(merged_peaks, 
                           args.output_file, 
