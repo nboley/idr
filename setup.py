@@ -15,11 +15,10 @@ except ImportError:
                   ["idr/inv_cdf.c", ]),
     ]
 
-import idr
-
 def main():
     if sys.version_info.major <= 2:
         raise ValueError( "IDR requires Python version 3 or higher" )
+    import idr
     setup(
         name = "idr",
         version = idr.__version__,
@@ -30,6 +29,8 @@ def main():
         ext_modules = extensions,     
 
         install_requires = [ 'scipy', 'numpy'  ],
+
+        extra_requires=['matplotlib'],
 
         packages= ['idr',],
 

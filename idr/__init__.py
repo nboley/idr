@@ -3,6 +3,7 @@ import sys
 __version__ = "2.0.0beta1"
 
 DEBUG_LEVELS = {'ERROR', 'WARNING', None, 'VERBOSE', 'DEBUG'}
+ERROR_LEVELS = {'ERROR', 'WARNING'}
 
 log_ofp = sys.stderr
 def log(*args, level=None):
@@ -12,10 +13,17 @@ def log(*args, level=None):
         if level == None:
             level = args[-1]
         args = args[:-1]
-    if QUIET: return
+    if level in ERROR_LEVELS:
+        print(" ".join(args), file=sys.stderr)
+        sys.stderr.flush()
+        if log_ofp == sys.stderr: return
+    elif QUIET: 
+        return
+    
     if (level in ('ERROR', 'WARNING', None) 
             or (level == 'VERBOSE' and VERBOSE)):
         print(" ".join(args), file=log_ofp)
+        log_ofp.flush()
 
 ## Global config options
 VERBOSE = False

@@ -353,9 +353,9 @@ Contact: Nathan Boley <npboley@gmail.com>
                 else:
                     args.plot_idr = idr.DEFAULT_PLOT_IDR
         except ImportError:
-            log("WARNING: matplotlib does not appear to be installed and is required for plotting - turning plotting off.", level="WARNING" )
+            idr.log("WARNING: matplotlib does not appear to be installed and is required for plotting - turning plotting off.", 
+                    level="WARNING" )
             args.plot = False
-            raise
         
     idr.IGNORE_NONOVERLAPPING_PEAKS = not args.use_nonoverlapping_peaks
     
