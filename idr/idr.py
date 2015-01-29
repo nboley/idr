@@ -33,7 +33,9 @@ def load_bed(fp, signal_type):
         signal = float(data[signal_index])
         if signal < 0: 
             raise ValueError("Invalid {}: {:e}".format(signal_type, signal))
-        peak = Peak(data[0], data[5], int(data[1]), int(data[2]), signal )
+        peak = Peak(data[0], data[5], 
+                    int(float(data[1])), int(float(data[2])), 
+                    signal )
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 

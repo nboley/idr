@@ -8,6 +8,9 @@ import idr
 import idr.idr
 try:
     idr.idr.main()
+except:
+    print(" ".join(sys.argv))
+    raise
 finally:
     if idr.log_ofp != sys.stderr:
        idr.log_ofp.close()
