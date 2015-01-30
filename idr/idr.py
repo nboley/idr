@@ -39,15 +39,18 @@ def load_bed(fp, signal_type):
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
-def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn):
+def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None):
     """Merge peaks in a single contig/strand.
     
     returns: The merged peaks. 
     """
     # merge and sort all peaks, keeping track of which sample they originated in
+    if oracle_pks == None: oracle_pks_iter = []
+    else: oracle_pks_iter = oracle_pks
     all_intervals = sorted(chain(
-            ((pk.start,pk.stop,pk.signal,1) for i, pk in enumerate(s1_peaks)),
-            ((pk.start,pk.stop,pk.signal,2) for i, pk in enumerate(s2_peaks))))
+            ((pk.start,pk.stop,pk.signal,1) for pk in s1_peaks),
+            ((pk.start,pk.stop,pk.signal,2) for pk in s2_peaks),
+            ((pk.start,pk.stop,pk.signal,0) for pk in oracle_pks_iter)))
     
     # grp overlapping intervals. Since they're already sorted, all we need
     # to do is check if the current interval overlaps the previous interval
@@ -69,35 +72,58 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn):
         # peak boundaries
         grpd_peaks = OrderedDict(((1, []), (2, [])))
         pk_start, pk_stop = 1e9, -1
-        for x in intervals:
-            pk_start = min(x[0], pk_start)
-            pk_stop = max(x[0], pk_stop)
-            grpd_peaks[x[3]].append(x)
-
+        for rep_start, rep_stop, signal, sample_id in intervals:
+            # if we've provided a unified peak set, ignore any intervals that 
+            # don't contain it for the purposes of generating the merged list
+            if oracle_pks == None or sample_id == 0:
+                pk_start = min(rep_start, pk_start)
+                pk_stop = max(rep_stop, pk_stop)
+            # if this is an actual sample (ie not a merged peaks)
+            if sample_id > 0:
+                grpd_peaks[sample_id].append(
+                    (rep_start, rep_stop, signal, sample_id))
+        
+        # if there are no identified peaks, continue (this can happen if 
+        # we have a merged peak list but no merged peaks overlap sample peaks)
+        if pk_stop == -1: continue
+        
         # skip regions that dont have a peak in all replicates
         if idr.IGNORE_NONOVERLAPPING_PEAKS:
             if any(0 == len(peaks) for peaks in grpd_peaks.values()):
                 continue
 
-        s1, s2 = (pk_agg_fn(pk[2] for pk in pks) 
+        s1, s2 = (pk_agg_fn(pk[2] for pk in pks)
                   for pks in grpd_peaks.values())
+                  
         merged_pk = (pk_start, pk_stop, s1, s2, grpd_peaks)
         merged_pks.append(merged_pk)
-    
+
     return merged_pks
 
-def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn):
+def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None):
     """Merge peaks over all contig/strands
     
     """
-    contigs = sorted(set(chain(s1_peaks.keys(), s2_peaks.keys())))
+    # if we have reference peaks, use its contigs: otherwise use
+    # the union of the replicates contigs
+    if oracle_pks != None:
+        contigs = sorted(oracle_pks.keys())
+    else:
+        contigs = sorted(set(chain(s1_peaks.keys(), s2_peaks.keys())))
+    
     merged_peaks = []
     for key in contigs:
+        # check to see if we've been provided a peak list and, if so, 
+        # pass it down. If not, set the oracle peaks to None so that 
+        # the callee knows not to use them
+        if oracle_pks != None: contig_oracle_pks = oracle_pks[key]
+        else: contig_oracle_pks = None
+        
         # since s*_peaks are default dicts, it will never raise a key error, 
         # but instead return an empty list which is what we want
         merged_peaks.extend(
             key + pk for pk in merge_peaks_in_contig(
-                s1_peaks[key], s2_peaks[key], pk_agg_fn))
+                s1_peaks[key], s2_peaks[key], pk_agg_fn, contig_oracle_pks))
     
     merged_peaks.sort(key=lambda x:pk_agg_fn((x[4],x[5])), reverse=True)
     return merged_peaks
@@ -268,6 +294,10 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '-b', type=PossiblyGzippedFile, required=True,
         help='narrowPeak or broadPeak file containing peaks from sample 2.')
 
+    parser.add_argument( '--peak-list', '-p', 
+        type=PossiblyGzippedFile, 
+        help='If provided, all peaks will be taken from this file.')
+    
     default_ofname = "idrValues.txt"
     parser.add_argument( '--output-file', "-o", type=argparse.FileType("w"), 
                          default=open(default_ofname, "w"), 
@@ -281,7 +311,7 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--idr', "-i", type=float, default=None, 
         help='Only report peaks with a global idr threshold below this value. Default: report all peaks')
 
-    parser.add_argument( '--plot', "-p", action='store_true', default=False,
+    parser.add_argument( '--plot', action='store_true', default=False,
                          help='Plot the results to [OFNAME].png')
     parser.add_argument( '--plot-idr', type=float, default=None, 
         help='Color peaks below this value. default: --idr if set else %.2f' 
@@ -378,10 +408,13 @@ def main():
     idr.log("Loading the peak files", 'VERBOSE')
     f1 = load_bed(args.a, args.rank)
     f2 = load_bed(args.b, args.rank)
-
+    
+    oracle_pks =  (
+        load_bed(args.peak_list, args.rank) if args.peak_list != None else None)
+    
     # build a unified peak set
     idr.log("Merging peaks", 'VERBOSE')
-    merged_peaks = merge_peaks(f1, f2, peak_merge_fn)
+    merged_peaks = merge_peaks(f1, f2, peak_merge_fn, oracle_pks)
     
     # build the ranks vector
     idr.log("Ranking peaks", 'VERBOSE')
