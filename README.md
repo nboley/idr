@@ -11,10 +11,10 @@ Irreproducible Discovery Rate (IDR)
 ```
 git clone --recursive https://github.com/nboley/idr.git
 ```
-```
+
 * Then follow the commands below 
 ```
-(sudo) python setup.py install
+(sudo) python3 setup.py install
 ```
 
 ### Usage
@@ -22,25 +22,20 @@ git clone --recursive https://github.com/nboley/idr.git
 List all the options
  
 ```
-idr
+idr -h
 ```
 
 Sample idr run using test peak files in the repo
 
 ```
-idr -a ../idr/test/data/peak1 -b ../idr/test/data/peak2
+idr --samples ../idr/test/data/peak1 ../idr/test/data/peak2
 ```
-
-### Usage
 
 The main contributors of IDR code:
 
   * Nathan Boleu        - Kundaje Lab, Dept. of Genetics, Stanford University
   * Anshul Kundaje      - Assistant Professor, Dept. of Genetics, Stanford University
-  * Qunhua Li           - Assistant Professor, Dept. of Statistics, Pennsylvania State University
   * Peter J. Bickel     - Professor, Dept. of Statistics, University of California at Berkeley
-  * Nikhil R Podduturi  - J. Michael Cherry Lab, Dept. of Genetics, Stanford University
-  * J. Seth Strattan    - J. Michael Cherry Lab, Dept. of Genetics, Stanford University
 
 ### Issues
 
