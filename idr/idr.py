@@ -238,7 +238,8 @@ def fit_model_and_calc_idr(r1, r2,
     return localIDRs, IDRs
 
 def write_results_to_file(merged_peaks, output_file, 
-                          max_allowed_idr=1.0,
+                          max_allowed_idr=idr.DEFAULT_IDR_THRESH,
+                          soft_max_allowed_idr=idr.DEFAULT_SOFT_IDR_THRESH,
                           localIDRs=None, IDRs=None):
     # write out the result
     idr.log("Writing results to file", "VERBOSE");
@@ -250,13 +251,16 @@ def write_results_to_file(merged_peaks, output_file,
         IDRs = numpy.ones(len(merged_peaks))
 
     
-    num_peaks_passing_thresh = 0
+    num_peaks_passing_hard_thresh = 0
+    num_peaks_passing_soft_thresh = 0
     for localIDR, IDR, merged_peak in zip(
             localIDRs, IDRs, merged_peaks):
         # skip peaks with global idr values below the threshold
         if max_allowed_idr != None and IDR > max_allowed_idr: 
             continue
-        num_peaks_passing_thresh += 1
+        num_peaks_passing_hard_thresh += 1
+        if IDR <= soft_max_allowed_idr:
+            num_peaks_passing_soft_thresh += 1
         opline = build_idr_output_line(
             merged_peak[0], merged_peak[1], 
             merged_peak[4:6], 
@@ -264,13 +268,19 @@ def write_results_to_file(merged_peaks, output_file,
         print( opline, file=output_file )
 
     idr.log(
+        "Number of reported peaks - {}/{} ({:.1f}%)\n".format(
+            num_peaks_passing_hard_thresh, len(merged_peaks),
+            100*float(num_peaks_passing_hard_thresh)/len(merged_peaks))
+    )
+    
+    idr.log(
         "Number of peaks passing IDR cutoff of {} - {}/{} ({:.1f}%)\n".format(
-            max_allowed_idr, 
-            num_peaks_passing_thresh, len(merged_peaks),
+            args.soft_idr_threshold, 
+            num_peaks_passing_soft_thresh, len(merged_peaks),
             100*float(num_peaks_passing_thresh)/len(merged_peaks))
     )
     
-    return 
+    return
 
 def parse_args():
     import argparse
@@ -382,11 +392,11 @@ Contact: Nathan Boley <npboley@gmail.com>
     if args.plot:
         try: 
             import matplotlib
-            if args.plot_idr == None:
-                if args.idr != None:
-                    args.plot_idr = args.idr
+            if args.soft_idr_threshold == None:
+                if args.idr_threshold != None:
+                    args.soft_idr_threshold = args.idr_threshold
                 else:
-                    args.plot_idr = idr.DEFAULT_PLOT_IDR
+                    args.soft_idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
         except ImportError:
             idr.log("WARNING: matplotlib does not appear to be installed and "\
                     +"is required for plotting - turning plotting off.", 
@@ -499,11 +509,11 @@ def main():
                                       alpha=0.05)
             matplotlib.pyplot.savefig(args.output_file.name + ".png")
     
-    write_results_to_file(merged_peaks, 
+    num_peaks_passing_thresh = write_results_to_file(merged_peaks, 
                           args.output_file, 
-                          max_allowed_idr=args.idr,
+                          max_allowed_idr=args.idr_threshold,
                           localIDRs=localIDRs, IDRs=IDRs)
-
+    
     args.output_file.close()
 
 if __name__ == '__main__':
