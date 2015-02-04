@@ -23,8 +23,7 @@ from idr.utility import calc_post_membership_prbs, compute_pseudo_values
 
 Peak = namedtuple('Peak', ['chrm', 'strand', 'start', 'stop', 'signal'])
 
-def load_bed(fp, signal_type):
-    signal_index = {"signal.value": 6, "p.value": 7, "q.value": 8}[signal_type]
+def load_bed(fp, signal_index):
     grpd_peaks = defaultdict(list)
     for line in fp:
         if line.startswith("#"): continue
@@ -32,14 +31,15 @@ def load_bed(fp, signal_type):
         data = line.split()
         signal = float(data[signal_index])
         if signal < 0: 
-            raise ValueError("Invalid {}: {:e}".format(signal_type, signal))
+            raise ValueError("Invalid Signal Value: {:e}".format(signal))
         peak = Peak(data[0], data[5], 
                     int(float(data[1])), int(float(data[2])), 
                     signal )
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
-def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None):
+def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
+                          use_nonoverlapping_peaks=False):
     """Merge peaks in a single contig/strand.
     
     returns: The merged peaks. 
@@ -88,10 +88,10 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None):
         if pk_stop == -1: continue
         
         # skip regions that dont have a peak in all replicates
-        if idr.IGNORE_NONOVERLAPPING_PEAKS:
+        if not use_nonoverlapping_peaks:
             if any(0 == len(peaks) for peaks in grpd_peaks.values()):
                 continue
-
+        
         s1, s2 = (pk_agg_fn(pk[2] for pk in pks)
                   for pks in grpd_peaks.values())
                   
@@ -100,7 +100,8 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None):
 
     return merged_pks
 
-def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None):
+def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None, 
+                use_nonoverlapping_peaks=False):
     """Merge peaks over all contig/strands
     
     """
@@ -123,7 +124,8 @@ def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None):
         # but instead return an empty list which is what we want
         merged_peaks.extend(
             key + pk for pk in merge_peaks_in_contig(
-                s1_peaks[key], s2_peaks[key], pk_agg_fn, contig_oracle_pks))
+                s1_peaks[key], s2_peaks[key], pk_agg_fn, contig_oracle_pks, 
+                use_nonoverlapping_peaks=False))
     
     merged_peaks.sort(key=lambda x:pk_agg_fn((x[4],x[5])), reverse=True)
     return merged_peaks
@@ -236,7 +238,8 @@ def fit_model_and_calc_idr(r1, r2,
     return localIDRs, IDRs
 
 def write_results_to_file(merged_peaks, output_file, 
-                          max_allowed_idr=1.0,
+                          max_allowed_idr=idr.DEFAULT_IDR_THRESH,
+                          soft_max_allowed_idr=idr.DEFAULT_SOFT_IDR_THRESH,
                           localIDRs=None, IDRs=None):
     # write out the result
     idr.log("Writing results to file", "VERBOSE");
@@ -248,13 +251,16 @@ def write_results_to_file(merged_peaks, output_file,
         IDRs = numpy.ones(len(merged_peaks))
 
     
-    num_peaks_passing_thresh = 0
+    num_peaks_passing_hard_thresh = 0
+    num_peaks_passing_soft_thresh = 0
     for localIDR, IDR, merged_peak in zip(
             localIDRs, IDRs, merged_peaks):
         # skip peaks with global idr values below the threshold
         if max_allowed_idr != None and IDR > max_allowed_idr: 
             continue
-        num_peaks_passing_thresh += 1
+        num_peaks_passing_hard_thresh += 1
+        if IDR <= soft_max_allowed_idr:
+            num_peaks_passing_soft_thresh += 1
         opline = build_idr_output_line(
             merged_peak[0], merged_peak[1], 
             merged_peak[4:6], 
@@ -262,19 +268,25 @@ def write_results_to_file(merged_peaks, output_file,
         print( opline, file=output_file )
 
     idr.log(
+        "Number of reported peaks - {}/{} ({:.1f}%)\n".format(
+            num_peaks_passing_hard_thresh, len(merged_peaks),
+            100*float(num_peaks_passing_hard_thresh)/len(merged_peaks))
+    )
+    
+    idr.log(
         "Number of peaks passing IDR cutoff of {} - {}/{} ({:.1f}%)\n".format(
-            max_allowed_idr, 
-            num_peaks_passing_thresh, len(merged_peaks),
+            args.soft_idr_threshold, 
+            num_peaks_passing_soft_thresh, len(merged_peaks),
             100*float(num_peaks_passing_thresh)/len(merged_peaks))
     )
     
-    return 
+    return
 
 def parse_args():
     import argparse
 
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=argparse.RawTextHelpFormatter,
         description="""
 Program: IDR (Irreproducible Discovery Rate)
 Version: {PACKAGE_VERSION}
@@ -288,39 +300,41 @@ Contact: Nathan Boley <npboley@gmail.com>
         else:
             return open(fname, 'r')
     
-    parser.add_argument( '-a', type=PossiblyGzippedFile, required=True,
-        help='narrowPeak or broadPeak file containing peaks from sample 1.')
-
-    parser.add_argument( '-b', type=PossiblyGzippedFile, required=True,
-        help='narrowPeak or broadPeak file containing peaks from sample 2.')
-
-    parser.add_argument( '--peak-list', '-p', 
-        type=PossiblyGzippedFile, 
+    parser.add_argument( '--samples', '-s', type=PossiblyGzippedFile, nargs=2, 
+                         required=True,
+                         help='Files containing peaks and scores.')
+    parser.add_argument( '--peak-list', '-p', type=PossiblyGzippedFile,
         help='If provided, all peaks will be taken from this file.')
+    parser.add_argument( '--input-file-type', default='narrowPeak',
+        choices=['narrowPeak', 'broadPeak', 'bed'], 
+        help='File type of --samples and --peak-list.')
+    
+    parser.add_argument( '--rank',
+        help="Which column to use to rank peaks."\
+            +"\t\nOptions: signal.value p.value q.value columnIndex"\
+            +"\nDefaults:\n\tnarrowPeak/broadPeak: signal.value\n\tbed: score")
     
     default_ofname = "idrValues.txt"
     parser.add_argument( '--output-file', "-o", type=argparse.FileType("w"), 
                          default=open(default_ofname, "w"), 
-        help='File to write output to. default: {}'.format(default_ofname))
+        help='File to write output to.\nDefault: {}'.format(default_ofname))
 
     parser.add_argument( '--log-output-file', "-l", type=argparse.FileType("w"),
                          default=sys.stderr,
-                         help='File to write output to. default: stderr')
-
-
-    parser.add_argument( '--idr', "-i", type=float, default=None, 
-        help='Only report peaks with a global idr threshold below this value. Default: report all peaks')
+                         help='File to write output to. Default: stderr')
+    
+    parser.add_argument( '--idr-threshold', "-i", type=float, 
+                         default=idr.DEFAULT_IDR_THRESH, 
+        help="Only return peaks with a global idr threshold below this value."\
+            +"\nDefault: report all peaks")
+    parser.add_argument( '--soft-idr-threshold', type=float, default=None, 
+        help="Report statistics for peaks with a global idr below this "\
+            +"value but return all peaks.\nDefault: --idr if set else %.2f"
+                         % idr.DEFAULT_SOFT_IDR_THRESH)
 
     parser.add_argument( '--plot', action='store_true', default=False,
                          help='Plot the results to [OFNAME].png')
-    parser.add_argument( '--plot-idr', type=float, default=None, 
-        help='Color peaks below this value. default: --idr if set else %.2f' 
-                         % idr.DEFAULT_PLOT_IDR)
-    
-    parser.add_argument( '--rank', default="signal.value",
-                         choices=["signal.value", "p.value", "q.value"],
-                         help='Type of ranking measure to use.')
-    
+        
     parser.add_argument( '--use-nonoverlapping-peaks', 
                          action="store_true", default=False,
         help='Use peaks without an overlapping match and set the value to 0.')
@@ -328,7 +342,7 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--peak-merge-method', 
                          choices=["sum", "avg", "min", "max"], default=None,
         help="Which method to use for merging peaks.\n" \
-              + "\tDefault: 'mean' for signal, 'min' for p/q-value.")
+              + "\tDefault: 'mean' for signal/score, 'min' for p/q-value.")
 
     parser.add_argument( '--initial-mu', type=float, default=idr.DEFAULT_MU,
         help="Initial value of mu. Default: %.2f" % idr.DEFAULT_MU)
@@ -352,13 +366,12 @@ Contact: Nathan Boley <npboley@gmail.com>
                          % idr.MAX_ITER_DEFAULT)
     parser.add_argument( '--convergence-eps', type=float, 
                          default=idr.CONVERGENCE_EPS_DEFAULT, 
-        help="The maximum change in parameter value changes for convergence. Default: %.2e" 
-                         % idr.CONVERGENCE_EPS_DEFAULT)
-
+        help="The maximum change in parameter value changes " \
+             + "for convergence. Default: %.2e" % idr.CONVERGENCE_EPS_DEFAULT)
+    
     parser.add_argument( '--only-merge-peaks', action='store_true', 
         help="Only return the merged peak list.")    
-
-
+    
     parser.add_argument( '--verbose', action="store_true", default=False, 
                          help="Print out additional debug information")
     parser.add_argument( '--quiet', action="store_true", default=False, 
@@ -379,42 +392,81 @@ Contact: Nathan Boley <npboley@gmail.com>
     if args.plot:
         try: 
             import matplotlib
-            if args.plot_idr == None:
-                if args.idr != None:
-                    args.plot_idr = args.idr
+            if args.soft_idr_threshold == None:
+                if args.idr_threshold != None:
+                    args.soft_idr_threshold = args.idr_threshold
                 else:
-                    args.plot_idr = idr.DEFAULT_PLOT_IDR
+                    args.soft_idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
         except ImportError:
-            idr.log("WARNING: matplotlib does not appear to be installed and is required for plotting - turning plotting off.", 
+            idr.log("WARNING: matplotlib does not appear to be installed and "\
+                    +"is required for plotting - turning plotting off.", 
                     level="WARNING" )
             args.plot = False
-        
-    idr.IGNORE_NONOVERLAPPING_PEAKS = not args.use_nonoverlapping_peaks
     
+    return args
+
+def load_samples(args):
     # decide what aggregation function to use for peaks that need to be merged
-    if args.peak_merge_method == None:
-        peak_merge_fn = {"signal.value": mean, "q.value": mean, "p.value": mean}[
-            args.rank]
-    else:
-        peak_merge_fn = {"sum": sum, "avg": mean, "min": min, "max": max}[
-            args.peak_merge_method]
-
-    return args, peak_merge_fn
-
-def main():
-    args, peak_merge_fn = parse_args()
-    
-    # load the peak files
     idr.log("Loading the peak files", 'VERBOSE')
-    f1 = load_bed(args.a, args.rank)
-    f2 = load_bed(args.b, args.rank)
-    
-    oracle_pks =  (
-        load_bed(args.peak_list, args.rank) if args.peak_list != None else None)
-    
+    if args.input_file_type in ['narrowPeak', 'broadPeak']:
+        if args.rank == None: signal_type = 'signal.value'
+        else: signal_type = args.rank
+
+        try: 
+            signal_index = {"score": 4, "signal.value": 6, 
+                            "p.value": 7, "q.value": 8}[signal_type]
+        except KeyError:
+            raise ValueError(
+                "Unrecognized signal type for {} filetype: '{}'".format(
+                    args.input_file_type, signal_type))
+
+        if args.peak_merge_method != None:
+            peak_merge_fn = {
+                "sum": sum, "avg": mean, "min": min, "max": max}[
+                    args.peak_merge_method]
+        elif signal_index in (4,6):
+            peak_merge_fn = sum
+        else:
+            peak_merge_fn = mean
+        f1, f2 = [load_bed(fp, signal_index) for fp in args.samples]
+        oracle_pks =  (
+            load_bed(args.peak_list, signal_index) 
+            if args.peak_list != None else None)
+    elif args.input_file_type in ['bed', ]:
+        if args.rank != None: 
+            if args.rank == 'score':
+                signal_index = 4
+            else:
+                try: signal_index = int(args.rank)
+                except ValueError:
+                    raise ValueError("For bed files --signal-type must either "\
+                                     +"be set to score or an index specifying "\
+                                     +"the column to use.")
+        if args.peak_merge_method != None:
+            peak_merge_fn = {
+                "sum": sum, "avg": mean, "min": min, "max": max}[
+                    args.peak_merge_method]
+        else:
+            peak_merge_fn = sum
+        f1, f2 = [load_bed(fp, signal_index) for fp in args.samples]
+        oracle_pks =  (
+            load_bed(args.peak_list, signal_index) 
+            if args.peak_list != None else None)
+    else:
+        raise ValueError( "Unrecognized file type: '{}'".format(
+            args.input_file_type))
+        
     # build a unified peak set
     idr.log("Merging peaks", 'VERBOSE')
-    merged_peaks = merge_peaks(f1, f2, peak_merge_fn, oracle_pks)
+    merged_peaks = merge_peaks(f1, f2, peak_merge_fn, 
+                               oracle_pks, args.use_nonoverlapping_peaks)
+    return merged_peaks
+
+def main():
+    args = parse_args()
+
+    # load and merge peaks
+    merged_peaks = load_samples(args)
     
     # build the ranks vector
     idr.log("Ranking peaks", 'VERBOSE')
@@ -457,11 +509,11 @@ def main():
                                       alpha=0.05)
             matplotlib.pyplot.savefig(args.output_file.name + ".png")
     
-    write_results_to_file(merged_peaks, 
+    num_peaks_passing_thresh = write_results_to_file(merged_peaks, 
                           args.output_file, 
-                          max_allowed_idr=args.idr,
+                          max_allowed_idr=args.idr_threshold,
                           localIDRs=localIDRs, IDRs=IDRs)
-
+    
     args.output_file.close()
 
 if __name__ == '__main__':
