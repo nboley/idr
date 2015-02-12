@@ -27,6 +27,12 @@ import idr.optimization
 from idr.optimization import estimate_model_params, old_estimator
 from idr.utility import calc_post_membership_prbs, compute_pseudo_values
 
+#This method is used to create enums to simply the code.
+def enum(**enums):
+    toReturn = type('Enum', (), enums);
+    toReturn.vals = enums.values();
+    return toReturn;
+
 Peak = namedtuple('Peak', ['chrm', 'strand', 'start', 'stop', 'signal'])
 PEAK_INDICES = enum(chrm=0, strand=5, start=1, stop=2);
 INPUT_FILE_TYPE = enum(narrowPeak = 'narrowPeak'
@@ -37,12 +43,6 @@ peak_merge_fn_lookup = {
         PEAK_MERGE_METHODS.sum: sum, PEAK_MERGE_METHODS.avg: mean
         , PEAK_MERGE_METHODS.min: min, PEAK_MERGE_METHODS.max: max
 }
-
-#This method is used to create enums to simply the code.
-def enum(**enums):
-    toReturn = type('Enum', (), enums);
-    toReturn.vals = enums.values();
-    return toReturn;
 
 
 def load_bed(fp, signal_index):
