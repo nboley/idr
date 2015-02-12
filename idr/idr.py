@@ -275,9 +275,9 @@ def write_results_to_file(merged_peaks, output_file,
     
     idr.log(
         "Number of peaks passing IDR cutoff of {} - {}/{} ({:.1f}%)\n".format(
-            args.soft_idr_threshold, 
+            soft_max_allowed_idr, 
             num_peaks_passing_soft_thresh, len(merged_peaks),
-            100*float(num_peaks_passing_thresh)/len(merged_peaks))
+            100*float(num_peaks_passing_soft_thresh)/len(merged_peaks))
     )
     
     return
@@ -492,17 +492,18 @@ def main():
             fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
         
         if args.plot:
+            assert len(args.samples) == 2
             import matplotlib
             matplotlib.use('Agg')
             import matplotlib.pyplot
             
             colors = numpy.full(len(r1), 'k', dtype=str)
-            colors[IDRs < args.plot_idr] = 'r'
+            colors[IDRs < args.soft_idr_threshold] = 'r'
 
             matplotlib.pyplot.axis([0, 1, 0, 1])
-            matplotlib.pyplot.xlabel(args.a.name)
-            matplotlib.pyplot.ylabel(args.b.name)
-            matplotlib.pyplot.title("IDR Ranks - (red <= %.2f)" % args.plot_idr)
+            matplotlib.pyplot.xlabel(args.samples[0].name)
+            matplotlib.pyplot.ylabel(args.samples[1].name)
+            matplotlib.pyplot.title("IDR Ranks - (red <= %.2f)" % args.plot)
             matplotlib.pyplot.scatter((r1+1)/float(len(r1)+1), 
                                       (r2+1)/float(len(r2)+1), 
                                       c=colors,
