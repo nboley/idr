@@ -1,3 +1,9 @@
+#Av: I wasn't able to install the idr package. This may have
+#been becuase the paths set up by my preexisting Anaconda install
+#conflicted with the paths required by python3 (which was not
+#pre-installed on my mac). The specific error I got pertained
+#to a numpy header that couldn't be found (even though numpy
+#had been installed for python3 on my mac).
 import os, sys
 
 import gzip, io
@@ -22,8 +28,29 @@ from idr.optimization import estimate_model_params, old_estimator
 from idr.utility import calc_post_membership_prbs, compute_pseudo_values
 
 Peak = namedtuple('Peak', ['chrm', 'strand', 'start', 'stop', 'signal'])
+PEAK_INDICES = enum(chrm=0, strand=5, start=1, stop=2);
+INPUT_FILE_TYPE = enum(narrowPeak = 'narrowPeak'
+                        ,broadPeak = 'broadPeak'
+                        ,bed='bed');
+PEAK_MERGE_METHODS = enum(sum='sum', avg='avg', min='min', max='max');
+peak_merge_fn_lookup = {
+        PEAK_MERGE_METHODS.sum: sum, PEAK_MERGE_METHODS.avg: mean
+        , PEAK_MERGE_METHODS.min: min, PEAK_MERGE_METHODS.max: max
+}
+
+#This method is used to create enums to simply the code.
+def enum(**enums):
+    toReturn = type('Enum', (), enums);
+    toReturn.vals = enums.values();
+    return toReturn;
+
 
 def load_bed(fp, signal_index):
+    """
+    returns: grpd_peaks which is a dictionary indexed by
+    (chromosome, strand) which contains a list of all
+    the Peak objects for that chromsome and strand.
+    """
     grpd_peaks = defaultdict(list)
     for line in fp:
         if line.startswith("#"): continue
@@ -32,16 +59,33 @@ def load_bed(fp, signal_index):
         signal = float(data[signal_index])
         if signal < 0: 
             raise ValueError("Invalid Signal Value: {:e}".format(signal))
-        peak = Peak(data[0], data[5], 
-                    int(float(data[1])), int(float(data[2])), 
+        
+        #Av: You were using straight int constants for the indices below.
+        #I swapped in the enum approach for readability/maintainability.
+        peak = Peak(data[PEAK_INDICES.chrom], data[PEAK_INDICES.strand], 
+                    int(float(data[PEAK_INDICES.start]))
+                    , int(float(data[PEAK_INDICES.stop])), 
                     signal )
+        #Av: re. int(float(..)) for start/end - I guess this is because
+        #sometimes some programs can unintentionally format the chrom
+        #start/end as floats rather than integers? Do you want to
+        #put in a robustness check to make sure that those positions
+        #are actually integers?
+        #If so, you can keep the lines below:
+        for (idxOfInteger, valName) in [(PEAK_INDICES.start, 'start')
+                                        ,(PEAK_INDICES.stop, 'stop')]:
+            if int(float(data[idxOfInteger])) != float(data[idxOfInteger]):
+                raise ValueError(
+                    "Expected "+valName+" at index "+str(idxOfInteger)
+                    +" to be an integer but got "+str(data[idxOfInteger]));
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
 def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
                           use_nonoverlapping_peaks=False):
     """Merge peaks in a single contig/strand.
-    
+        pk_agg_fn: the aggregate function for peak merging
+        oracle_pks: (optional) the set of peaks to use 
     returns: The merged peaks. 
     """
     # merge and sort all peaks, keeping track of which sample they originated in
@@ -103,7 +147,8 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
 def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None, 
                 use_nonoverlapping_peaks=False):
     """Merge peaks over all contig/strands
-    
+        pk_agg_fn: the aggregate function for peak merging
+        oracle_pks: (optional) the set of peaks to use  
     """
     # if we have reference peaks, use its contigs: otherwise use
     # the union of the replicates contigs
@@ -295,6 +340,7 @@ Contact: Nathan Boley <npboley@gmail.com>
 """.format(PACKAGE_VERSION=idr.__version__))
 
     def PossiblyGzippedFile(fname):
+        #Av: do they every end with 'gzip'?
         if fname.endswith(".gz"):
             return io.TextIOWrapper(gzip.open(fname, 'rb'))
         else:
@@ -305,8 +351,8 @@ Contact: Nathan Boley <npboley@gmail.com>
                          help='Files containing peaks and scores.')
     parser.add_argument( '--peak-list', '-p', type=PossiblyGzippedFile,
         help='If provided, all peaks will be taken from this file.')
-    parser.add_argument( '--input-file-type', default='narrowPeak',
-        choices=['narrowPeak', 'broadPeak', 'bed'], 
+    parser.add_argument( '--input-file-type', default=INPUT_FILE_TYPE.narrowPeak,
+        choices=INPUT_FILE_TYPE.vals, 
         help='File type of --samples and --peak-list.')
     
     parser.add_argument( '--rank',
@@ -333,16 +379,16 @@ Contact: Nathan Boley <npboley@gmail.com>
                          % idr.DEFAULT_SOFT_IDR_THRESH)
 
     parser.add_argument( '--plot', action='store_true', default=False,
-                         help='Plot the results to [OFNAME].png')
+                         help='Plot the results to [OUTPUTFILENAME].png')
         
     parser.add_argument( '--use-nonoverlapping-peaks', 
                          action="store_true", default=False,
         help='Use peaks without an overlapping match and set the value to 0.')
     
     parser.add_argument( '--peak-merge-method', 
-                         choices=["sum", "avg", "min", "max"], default=None,
+                         choices=PEAK_MERGE_METHODS.vals, default=None,
         help="Which method to use for merging peaks.\n" \
-              + "\tDefault: 'mean' for signal/score, 'min' for p/q-value.")
+              + "\tDefault: 'avg' for signal/score, 'min' for p/q-value.")
 
     parser.add_argument( '--initial-mu', type=float, default=idr.DEFAULT_MU,
         help="Initial value of mu. Default: %.2f" % idr.DEFAULT_MU)
@@ -408,12 +454,12 @@ Contact: Nathan Boley <npboley@gmail.com>
 def load_samples(args):
     # decide what aggregation function to use for peaks that need to be merged
     idr.log("Loading the peak files", 'VERBOSE')
-    if args.input_file_type in ['narrowPeak', 'broadPeak']:
+    if args.input_file_type in [INPUT_FILE_TYPE.narrowPeak, INPUT_FILE_TYPE.broadPeak]:
         if args.rank == None: signal_type = 'signal.value'
         else: signal_type = args.rank
-
+        (score_idx, signal_idx) = (4,6); #assigning to variables for readability
         try: 
-            signal_index = {"score": 4, "signal.value": 6, 
+            signal_index = {"score": score_idx, "signal.value": signal_idx, 
                             "p.value": 7, "q.value": 8}[signal_type]
         except KeyError:
             raise ValueError(
@@ -421,41 +467,51 @@ def load_samples(args):
                     args.input_file_type, signal_type))
 
         if args.peak_merge_method != None:
-            peak_merge_fn = {
-                "sum": sum, "avg": mean, "min": min, "max": max}[
-                    args.peak_merge_method]
-        elif signal_index in (4,6):
+            peak_merge_fn = peak_merge_fn_lookup[args.peak_merge_method]
+            #Av: adding the check below in case you ever decide
+            #to add more peak merge methods.
+            assert peak_merge_fn is not None;
+        #N.B. to developer: if you change these defaults, please
+        #also change the help message in argparse.
+        elif signal_index in (score_idx, signal_idx):
             peak_merge_fn = sum
-        else:
+        else: #p.value, q.value
             peak_merge_fn = mean
-        f1, f2 = [load_bed(fp, signal_index) for fp in args.samples]
-        oracle_pks =  (
-            load_bed(args.peak_list, signal_index) 
-            if args.peak_list != None else None)
-    elif args.input_file_type in ['bed', ]:
+    elif args.input_file_type in [INPUT_FILE_TYPE.bed, ]:
+        score_idx = 4;
         if args.rank != None: 
             if args.rank == 'score':
-                signal_index = 4
+                signal_index = score_idx;
             else:
                 try: signal_index = int(args.rank)
                 except ValueError:
                     raise ValueError("For bed files --signal-type must either "\
                                      +"be set to score or an index specifying "\
                                      +"the column to use.")
+        #Av: it doesn't look like you had a case for when rank
+        #was none, and since rank was an optional argument,
+        #I think the clause below is necessary.
+        else:
+            signal_index = score_idx;
         if args.peak_merge_method != None:
-            peak_merge_fn = {
-                "sum": sum, "avg": mean, "min": min, "max": max}[
-                    args.peak_merge_method]
+            peak_merge_fn = peak_merge_fn_lookup[args.peak_merge_method]
+        #N.B. to developer: if you change these defaults, please
+        #also change the help message in argparse.
         else:
             peak_merge_fn = sum
-        f1, f2 = [load_bed(fp, signal_index) for fp in args.samples]
-        oracle_pks =  (
-            load_bed(args.peak_list, signal_index) 
-            if args.peak_list != None else None)
     else:
         raise ValueError( "Unrecognized file type: '{}'".format(
             args.input_file_type))
-        
+    
+    #Av: this code was repeated twice in each if branch above. I
+    #moved it out.    
+    #f1 and f2 are dictionaries with the index being (chrom, strand)
+    #and the values being the list of peaks on that (chrom, strand)
+    f1, f2 = [load_bed(fp, signal_index) for fp in args.samples]
+    oracle_pks =  (
+        load_bed(args.peak_list, signal_index) 
+        if args.peak_list != None else None)
+    
     # build a unified peak set
     idr.log("Merging peaks", 'VERBOSE')
     merged_peaks = merge_peaks(f1, f2, peak_merge_fn, 
