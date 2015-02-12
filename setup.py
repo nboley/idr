@@ -1,18 +1,21 @@
 import os, sys
+import numpy
 from setuptools import setup, Extension, find_packages
 
 try:
     from Cython.Build import cythonize
     extensions = cythonize([
         Extension("idr.inv_cdf", 
-                  ["idr/inv_cdf.pyx", ]),
+                  ["idr/inv_cdf.pyx", ],
+                  include_dirs=[numpy.get_include()]),
     ])
 except ImportError:
     raise
     print( "Cython not installed: reverting to c version")
     extensions = [
         Extension("idr.inv_cdf", 
-                  ["idr/inv_cdf.c", ]),
+                  ["idr/inv_cdf.c", ],
+                  include_dirs=[numpy.get_include()]),
     ]
 
 def main():
