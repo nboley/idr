@@ -85,7 +85,7 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
                           use_nonoverlapping_peaks=False):
     """Merge peaks in a single contig/strand.
         pk_agg_fn: the aggregate function for peak merging
-        oracle_pks: (optional) the set of peaks to use 
+        oracle_pks: (optional) the peaks specified in peak-list. 
     returns: The merged peaks. 
     """
     # merge and sort all peaks, keeping track of which sample they originated in
@@ -98,9 +98,14 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
     
     # grp overlapping intervals. Since they're already sorted, all we need
     # to do is check if the current interval overlaps the previous interval
+    # (importantly, they are sorted by the start index, then by the stop
+    # index).
     grpd_intervals = [[],]
     curr_start, curr_stop = all_intervals[0][:2]
     for x in all_intervals:
+        # due to the sorting, we are guaranteed that x[1] > curr_start.
+        # Note that the condition below successfully includes the
+        # first peak.
         if x[0] < curr_stop:
             curr_stop = max(x[1], curr_stop)
             grpd_intervals[-1].append(x)
@@ -115,27 +120,41 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
         # grp peaks by their source, and calculate the merged
         # peak boundaries
         grpd_peaks = OrderedDict(((1, []), (2, [])))
-        pk_start, pk_stop = 1e9, -1
+        #Av: changed 1e9 to 1e10, because I think some
+        #organisms have much larger chromosomes than humans
+        pk_start, pk_stop = 1e10, -1
         for rep_start, rep_stop, signal, sample_id in intervals:
             # if we've provided a unified peak set, ignore any intervals that 
             # don't contain it for the purposes of generating the merged list
+            # The way the condition below works is that if a particular set
+            # of grouped peaks has no oracle_peaks, but oracle speaks was
+            # specified, pk_stop will end up being -1 - and that will be
+            # used later in a filtering condition.
             if oracle_pks == None or sample_id == 0:
                 pk_start = min(rep_start, pk_start)
                 pk_stop = max(rep_stop, pk_stop)
             # if this is an actual sample (ie not a merged peaks)
+            # (sample_id is 0 for oracle_peaks)
             if sample_id > 0:
                 grpd_peaks[sample_id].append(
                     (rep_start, rep_stop, signal, sample_id))
         
         # if there are no identified peaks, continue (this can happen if 
-        # we have a merged peak list but no merged peaks overlap sample peaks)
+        # we have a merged peak list (oracle peaks)
+        # but no merged peaks overlap sample peaks)
         if pk_stop == -1: continue
         
         # skip regions that dont have a peak in all replicates
         if not use_nonoverlapping_peaks:
             if any(0 == len(peaks) for peaks in grpd_peaks.values()):
                 continue
-        
+       
+        # 2 is the index for the peak_signal.
+        #Av: The use of the raw constant '2' over here as the index
+        # for the signal makes me wish 'Peaks' were an object, not
+        #just a tuple, but I recognise that adds overhead.
+        #I still wish there were a way to couple the index
+        #here to the *actual* place where the signal is stored.
         s1, s2 = (pk_agg_fn(pk[2] for pk in pks)
                   for pks in grpd_peaks.values())
                   
@@ -167,11 +186,21 @@ def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
         
         # since s*_peaks are default dicts, it will never raise a key error, 
         # but instead return an empty list which is what we want
+        # Av: (BUG) use_non_overlapping_peaks was being set to False; I took
+        # that out, now it uses the passed in value.
         merged_peaks.extend(
             key + pk for pk in merge_peaks_in_contig(
                 s1_peaks[key], s2_peaks[key], pk_agg_fn, contig_oracle_pks, 
-                use_nonoverlapping_peaks=False))
-    
+                use_nonoverlapping_peaks))
+   
+    # 4 and 5 are the indexes for the signal from rep 1 and rep2,
+    # respectively.
+    #Av: Augh more raw constants. This is again why I wish Peak were an
+    #object.
+    #Av: also...if the aggregate function is 'mean', then the result
+    #here is NOT the same as taking the mean across all peaks in all
+    #replicates - because this gives equal weight to each replicate...
+    #is this deliberate? 
     merged_peaks.sort(key=lambda x:pk_agg_fn((x[4],x[5])), reverse=True)
     return merged_peaks
 
@@ -181,8 +210,13 @@ def build_rank_vectors(merged_peaks):
     s2 = numpy.zeros(len(merged_peaks))
     # add the signal
     for i, x in enumerate(merged_peaks):
+        #x[4] is the signal from rep1, x[5] from rep2.
+        #Av: Aaah! Raw Indexes!
         s1[i], s2[i] = x[4], x[5]
 
+    #ranks the signal by its strength and breaks ties randomly
+    #Av: I think the argsort at the end is redundant. lexsort appears
+    #to return indices.
     rank1 = numpy.lexsort((numpy.random.random(len(s1)), s1)).argsort()
     rank2 = numpy.lexsort((numpy.random.random(len(s2)), s2)).argsort()
     
@@ -488,7 +522,7 @@ def load_samples(args):
                     raise ValueError("For bed files --signal-type must either "\
                                      +"be set to score or an index specifying "\
                                      +"the column to use.")
-        #Av: it doesn't look like you had a case for when rank
+        #Av: (BUG) it doesn't look like you had a case for when rank
         #was none, and since rank was an optional argument,
         #I think the clause below is necessary.
         else:
