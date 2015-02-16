@@ -10,8 +10,6 @@ try:
                   include_dirs=[numpy.get_include()]),
     ])
 except ImportError:
-    raise
-    print( "Cython not installed: reverting to c version")
     extensions = [
         Extension("idr.inv_cdf", 
                   ["idr/inv_cdf.c", ],

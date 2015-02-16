@@ -46,7 +46,6 @@ def sum_grad_sq_loss(r1, r2, theta):
 # set the loss function to log_lhd
 calc_loss = log_lhd_loss
 
-
 def old_estimator(ranks_1, ranks_2):
     import ctypes
     
