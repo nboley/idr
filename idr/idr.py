@@ -144,8 +144,27 @@ def build_rank_vectors(merged_peaks):
     return ( numpy.array(rank1, dtype=numpy.int), 
              numpy.array(rank2, dtype=numpy.int) )
 
-def build_idr_output_line(
-    contig, strand, signals, merged_peak, IDR, localIDR):
+def build_idr_output_line_with_bed6(
+    contig, strand, merged_start, merged_stop, 
+        signals, merged_peak, IDR, localIDR):
+    rv = [contig, str(merged_start), str(merged_stop), 
+          ".", "%i" % ((1-IDR)*1000), strand]
+    for signal, key in zip(signals, (1,2)):
+        if len(merged_peak[key]) == 0: 
+            rv.extend(("-1", "-1"))
+        else:
+            rv.append( "%i" % min(x[0] for x in merged_peak[key]))
+            rv.append( "%i" % max(x[1] for x in merged_peak[key]))
+        rv.append( "%.5f" % signal )
+    
+    rv.append("%.5f" % IDR)
+    rv.append("%.5f" % localIDR)
+        
+    return "\t".join(rv)
+
+def build_backwards_compatible_idr_output_line(
+        contig, strand, merged_start, merged_stop, 
+        signals, merged_peak, IDR, localIDR):
     rv = [contig,]
     for signal, key in zip(signals, (1,2)):
         if len(merged_peak[key]) == 0: 
@@ -242,7 +261,13 @@ def fit_model_and_calc_idr(r1, r2,
 def write_results_to_file(merged_peaks, output_file, 
                           max_allowed_idr=idr.DEFAULT_IDR_THRESH,
                           soft_max_allowed_idr=idr.DEFAULT_SOFT_IDR_THRESH,
-                          localIDRs=None, IDRs=None):
+                          localIDRs=None, IDRs=None, 
+                          useBackwardsCompatibleOutput=False):
+    if useBackwardsCompatibleOutput:
+        build_idr_output_line = build_backwards_compatible_idr_output_line
+    else:
+        build_idr_output_line = build_idr_output_line_with_bed6
+    
     # write out the result
     idr.log("Writing results to file", "VERBOSE");
     
@@ -265,6 +290,7 @@ def write_results_to_file(merged_peaks, output_file,
             num_peaks_passing_soft_thresh += 1
         opline = build_idr_output_line(
             merged_peak[0], merged_peak[1], 
+            merged_peak[2], merged_peak[3],
             merged_peak[4:6], 
             merged_peak[6], IDR, localIDR )
         print( opline, file=output_file )
@@ -333,6 +359,10 @@ Contact: Nathan Boley <npboley@gmail.com>
         help="Report statistics for peaks with a global idr below this "\
             +"value but return all peaks.\nDefault: --idr if set else %.2f"
                          % idr.DEFAULT_SOFT_IDR_THRESH)
+
+    parser.add_argument( '--use-old-output-format', 
+                         action='store_true', default=False,
+                         help="Use old output format.")
 
     parser.add_argument( '--plot', action='store_true', default=False,
                          help='Plot the results to [OFNAME].png')
@@ -512,10 +542,13 @@ def main():
                                       alpha=0.05)
             matplotlib.pyplot.savefig(args.output_file.name + ".png")
     
-    num_peaks_passing_thresh = write_results_to_file(merged_peaks, 
-                          args.output_file, 
-                          max_allowed_idr=args.idr_threshold,
-                          localIDRs=localIDRs, IDRs=IDRs)
+    num_peaks_passing_thresh = write_results_to_file(
+        merged_peaks, 
+        args.output_file, 
+        max_allowed_idr=args.idr_threshold,
+        localIDRs=localIDRs, 
+        IDRs=IDRs,
+        useBackwardsCompatibleOutput=args.use_old_output_format)
     
     args.output_file.close()
 
