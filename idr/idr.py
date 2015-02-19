@@ -156,9 +156,9 @@ def build_idr_output_line_with_bed6(
             rv.append( "%i" % min(x[0] for x in merged_peak[key]))
             rv.append( "%i" % max(x[1] for x in merged_peak[key]))
         rv.append( "%.5f" % signal )
-    
+
+    rv.append("%.5f" % localIDR)    
     rv.append("%.5f" % IDR)
-    rv.append("%.5f" % localIDR)
         
     return "\t".join(rv)
 
@@ -174,8 +174,8 @@ def build_backwards_compatible_idr_output_line(
             rv.append( "%i" % max(x[1] for x in merged_peak[key]))
         rv.append( "%.5f" % signal )
     
-    rv.append("%.5f" % IDR)
     rv.append("%.5f" % localIDR)
+    rv.append("%.5f" % IDR)
     rv.append(strand)
         
     return "\t".join(rv)
