@@ -21,9 +21,13 @@ import idr.optimization
 from idr.optimization import estimate_model_params, old_estimator
 from idr.utility import calc_post_membership_prbs, compute_pseudo_values
 
-Peak = namedtuple('Peak', ['chrm', 'strand', 'start', 'stop', 'signal'])
+Peak = namedtuple(
+    'Peak', ['chrm', 'strand', 'start', 'stop', 'signal', 'summit'])
+MergedPeak = namedtuple(
+    'Peak', ['chrm', 'strand', 'start', 'stop', 'summit', 
+             'merged_signal', 'signals', 'pks'])
 
-def load_bed(fp, signal_index):
+def load_bed(fp, signal_index, peak_summit_index=None):
     grpd_peaks = defaultdict(list)
     for line in fp:
         if line.startswith("#"): continue
@@ -32,9 +36,16 @@ def load_bed(fp, signal_index):
         signal = float(data[signal_index])
         if signal < 0: 
             raise ValueError("Invalid Signal Value: {:e}".format(signal))
+        if peak_summit_index == None or int(data[peak_summit_index]) == -1:
+            summit = None
+        else:
+            summit = int(data[peak_summit_index])
+        assert summit == None or summit >= 0
+        
+        summit = None if  peak_summit_index != None else None
         peak = Peak(data[0], data[5], 
                     int(float(data[1])), int(float(data[2])), 
-                    signal )
+                    signal, summit )
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
@@ -48,21 +59,21 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
     if oracle_pks == None: oracle_pks_iter = []
     else: oracle_pks_iter = oracle_pks
     all_intervals = sorted(chain(
-            ((pk.start,pk.stop,pk.signal,1) for pk in s1_peaks),
-            ((pk.start,pk.stop,pk.signal,2) for pk in s2_peaks),
-            ((pk.start,pk.stop,pk.signal,0) for pk in oracle_pks_iter)))
+            ((pk,1) for pk in s1_peaks),
+            ((pk,2) for pk in s2_peaks),
+            ((pk,0) for pk in oracle_pks_iter)))
     
     # grp overlapping intervals. Since they're already sorted, all we need
     # to do is check if the current interval overlaps the previous interval
     grpd_intervals = [[],]
     curr_start, curr_stop = all_intervals[0][:2]
-    for x in all_intervals:
-        if x[0] < curr_stop:
-            curr_stop = max(x[1], curr_stop)
-            grpd_intervals[-1].append(x)
+    for pk, sample_id in all_intervals:
+        if pk.start < curr_stop:
+            curr_stop = max(pk.stop, curr_stop)
+            grpd_intervals[-1].append((pk, sample_id))
         else:
-            curr_start, curr_stop = x[:2]
-            grpd_intervals.append([x,])
+            curr_start, curr_stop = pk.start, pk.stop
+            grpd_intervals.append([(pk, sample_id),])
 
     # build the unified peak list, setting the score to 
     # zero if it doesn't exist in both replicates
@@ -71,18 +82,17 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
         # grp peaks by their source, and calculate the merged
         # peak boundaries
         grpd_peaks = OrderedDict(((1, []), (2, [])))
-        pk_start, pk_stop = 1e9, -1
-        for rep_start, rep_stop, signal, sample_id in intervals:
+        pk_start, pk_stop = 1e12, -1
+        for interval, sample_id in intervals:
             # if we've provided a unified peak set, ignore any intervals that 
             # don't contain it for the purposes of generating the merged list
             if oracle_pks == None or sample_id == 0:
-                pk_start = min(rep_start, pk_start)
-                pk_stop = max(rep_stop, pk_stop)
+                pk_start = min(interval.start, pk_start)
+                pk_stop = max(interval.stop, pk_stop)
             # if this is an actual sample (ie not a merged peaks)
             if sample_id > 0:
-                grpd_peaks[sample_id].append(
-                    (rep_start, rep_stop, signal, sample_id))
-        
+                grpd_peaks[sample_id].append(interval)
+
         # if there are no identified peaks, continue (this can happen if 
         # we have a merged peak list but no merged peaks overlap sample peaks)
         if pk_stop == -1: continue
@@ -91,13 +101,37 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
         if not use_nonoverlapping_peaks:
             if any(0 == len(peaks) for peaks in grpd_peaks.values()):
                 continue
-        
-        s1, s2 = (pk_agg_fn(pk[2] for pk in pks)
-                  for pks in grpd_peaks.values())
-                  
-        merged_pk = (pk_start, pk_stop, s1, s2, grpd_peaks)
-        merged_pks.append(merged_pk)
 
+        # find the merged peak summit
+        # note that we can iterate through the values because 
+        # grpd_peaks is an ordered dict
+        replicate_summits = []
+        for sample_id, pks in grpd_peaks.items():
+            # if an oracle peak set is specified, skip the replicates
+            if oracle_pks != None and sample_id != 0: continue
+            
+            # initialize the summit to the first peak
+            replicate_summit, summit_signal = pks[0].summit, pks[0].signal
+            # if there are more peaks, take the summit that corresponds to the 
+            # replicate peak with the highest signal value
+            for pk in pks[1:]:
+                if pk.summit != None and pk.signal > summit_signal:
+                    replicate_summit, summit_signal = pk.summit, pk.signal
+            # make sure a peak summit was specified
+            if replicate_summit != None:
+                replicate_summits.append( replicate_summit )
+        
+        summit = ( int(mean(replicate_summits)) 
+                   if len(replicate_summits) > 0 else None )
+        
+        # note that we can iterate through the values because 
+        # grpd_peaks is an ordered dict
+        signals = [pk_agg_fn(pk.signal for pk in pks)
+                  for pks in grpd_peaks.values()]
+        merged_pk = (pk_start, pk_stop, summit, 
+                     pk_agg_fn(signals), signals, grpd_peaks)
+        merged_pks.append(merged_pk)
+    
     return merged_pks
 
 def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None, 
@@ -122,12 +156,13 @@ def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
         
         # since s*_peaks are default dicts, it will never raise a key error, 
         # but instead return an empty list which is what we want
+        merged_contig_peaks = merge_peaks_in_contig(
+            s1_peaks[key], s2_peaks[key], pk_agg_fn, contig_oracle_pks, 
+            use_nonoverlapping_peaks=use_nonoverlapping_peaks)
         merged_peaks.extend(
-            key + pk for pk in merge_peaks_in_contig(
-                s1_peaks[key], s2_peaks[key], pk_agg_fn, contig_oracle_pks, 
-                use_nonoverlapping_peaks=False))
+            MergedPeak(*(key + pk)) for pk in merged_contig_peaks)
     
-    merged_peaks.sort(key=lambda x:pk_agg_fn((x[4],x[5])), reverse=True)
+    merged_peaks.sort(key=lambda x:x.merged_signal, reverse=True)
     return merged_peaks
 
 def build_rank_vectors(merged_peaks):
@@ -136,7 +171,7 @@ def build_rank_vectors(merged_peaks):
     s2 = numpy.zeros(len(merged_peaks))
     # add the signal
     for i, x in enumerate(merged_peaks):
-        s1[i], s2[i] = x[4], x[5]
+        s1[i], s2[i] = x.signals
 
     rank1 = numpy.lexsort((numpy.random.random(len(s1)), s1)).argsort()
     rank2 = numpy.lexsort((numpy.random.random(len(s2)), s2)).argsort()
@@ -145,21 +180,37 @@ def build_rank_vectors(merged_peaks):
              numpy.array(rank2, dtype=numpy.int) )
 
 def build_idr_output_line_with_bed6(
-    contig, strand, merged_start, merged_stop, 
-        signals, merged_peak, IDR, localIDR):
-    rv = [contig, str(merged_start), str(merged_stop), 
-          ".", "%i" % ((1-IDR)*1000), strand]
-    for signal, key in zip(signals, (1,2)):
-        if len(merged_peak[key]) == 0: 
-            rv.extend(("-1", "-1"))
-        else:
-            rv.append( "%i" % min(x[0] for x in merged_peak[key]))
-            rv.append( "%i" % max(x[1] for x in merged_peak[key]))
-        rv.append( "%.5f" % signal )
+        m_pk, IDR, localIDR, output_file_type, signal_type):
+    # initialize the line with the bed6 entires - these are 
+    # present in all of the output types
+    rv = [m_pk.chrm, str(m_pk.start), str(m_pk.stop), 
+          ".", "%i" % ((1-IDR)*1000), m_pk.strand]
+    if output_file_type == 'bed':
+        # if we just want a bed, there's nothing else to be done
+        pass
+    # for narrow/broad peak files, we need to add the 3 score fields
+    elif output_file_type in ('narrowPeak', 'broadPeak'):
+        # set the signal values that we didn't use to -1 per the standard 
+        signal_values = ["-1", "-1", "-1"]
+        signal_values[
+            {"signal.value": 0, "p.value": 1, "q.value": 2}[signal_type]
+            ] = ("%.5f" % m_pk.merged_signal)
+        rv.extend(signal_values)
+        # if this is a narrow peak, we also need to add the summit
+        if output_file_type == 'narrowPeak':
+            rv.append(str(-1 if m_pk.summit == None else m_pk.summit))
+    else:
+        raise ValueError("Unrecognized output format '{}'".format(outputFormat))
 
     rv.append("%.5f" % localIDR)    
     rv.append("%.5f" % IDR)
-        
+    
+    for key, signal in enumerate(m_pk.signals):
+        # we add one tot he key because key=0 corresponds to the oracle peaks
+        rv.append( "%i" % min(x.start for x in m_pk.pks[key+1]))
+        rv.append( "%i" % max(x.stop for x in m_pk.pks[key+1]))
+        rv.append( "%.5f" % signal )
+            
     return "\t".join(rv)
 
 def build_backwards_compatible_idr_output_line(
@@ -259,6 +310,7 @@ def fit_model_and_calc_idr(r1, r2,
     return localIDRs, IDRs
 
 def write_results_to_file(merged_peaks, output_file, 
+                          output_file_type, signal_type,
                           max_allowed_idr=idr.DEFAULT_IDR_THRESH,
                           soft_max_allowed_idr=idr.DEFAULT_SOFT_IDR_THRESH,
                           localIDRs=None, IDRs=None, 
@@ -289,10 +341,7 @@ def write_results_to_file(merged_peaks, output_file,
         if IDR <= soft_max_allowed_idr:
             num_peaks_passing_soft_thresh += 1
         opline = build_idr_output_line(
-            merged_peak[0], merged_peak[1], 
-            merged_peak[2], merged_peak[3],
-            merged_peak[4:6], 
-            merged_peak[6], IDR, localIDR )
+            merged_peak, IDR, localIDR, output_file_type, signal_type)
         print( opline, file=output_file )
 
     idr.log(
@@ -460,7 +509,12 @@ def load_samples(args):
             peak_merge_fn = sum
         else:
             peak_merge_fn = mean
-        f1, f2 = [load_bed(fp, signal_index) for fp in args.samples]
+        if args.input_file_type == 'narrowPeak':
+            summit_index = 9
+        else:
+            summit_index = None
+        f1, f2 = [load_bed(fp, signal_index, summit_index) 
+                  for fp in args.samples]
         oracle_pks =  (
             load_bed(args.peak_list, signal_index) 
             if args.peak_list != None else None)
@@ -492,13 +546,13 @@ def load_samples(args):
     idr.log("Merging peaks", 'VERBOSE')
     merged_peaks = merge_peaks(f1, f2, peak_merge_fn, 
                                oracle_pks, args.use_nonoverlapping_peaks)
-    return merged_peaks
+    return merged_peaks, signal_type
 
 def main():
     args = parse_args()
 
     # load and merge peaks
-    merged_peaks = load_samples(args)
+    merged_peaks, signal_type = load_samples(args)
     
     # build the ranks vector
     idr.log("Ranking peaks", 'VERBOSE')
@@ -511,7 +565,8 @@ def main():
             error_msg = "Peak files must contain at least 20 peaks post-merge"
             error_msg += "\nHint: Merged peaks were written to the output file"
             write_results_to_file(
-                merged_peaks, args.output_file )
+                merged_peaks, args.output_file,
+                args.output_file_type, args.signal_type)
             raise ValueError(error_msg)
 
         localIDRs, IDRs = fit_model_and_calc_idr(
@@ -545,6 +600,8 @@ def main():
     num_peaks_passing_thresh = write_results_to_file(
         merged_peaks, 
         args.output_file, 
+        args.input_file_type, 
+        signal_type,
         max_allowed_idr=args.idr_threshold,
         localIDRs=localIDRs, 
         IDRs=IDRs,
