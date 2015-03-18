@@ -400,13 +400,11 @@ Contact: Nathan Boley <npboley@gmail.com>
                          help='File to write output to. Default: stderr')
     
     parser.add_argument( '--idr-threshold', "-i", type=float, 
-                         default=idr.DEFAULT_IDR_THRESH, 
         help="Only return peaks with a global idr threshold below this value."\
             +"\nDefault: report all peaks")
     parser.add_argument( '--soft-idr-threshold', type=float, default=None, 
         help="Report statistics for peaks with a global idr below this "\
-            +"value but return all peaks.\nDefault: --idr if set else %.2f"
-                         % idr.DEFAULT_SOFT_IDR_THRESH)
+            +"value but return all peaks.\nDefault: --idr if set else %.2f")
 
     parser.add_argument( '--use-old-output-format', 
                          action='store_true', default=False,
@@ -472,14 +470,19 @@ Contact: Nathan Boley <npboley@gmail.com>
         idr.QUIET = True 
         idr.VERBOSE = False
 
+    if args.idr_threshold == None and args.soft_idr_threshold == None:
+        args.idr_threshold = idr.DEFAULT_IDR_THRESH
+        args.soft_idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
+    elif args.soft_idr_threshold == None:
+        assert args.idr_threshold != None
+        args.soft_idr_threshold = args.idr_threshold
+    elif args.idr_threshold == None:
+        assert args.soft_idr_threshold != None
+        args.idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
+
     if args.plot:
         try: 
             import matplotlib
-            if args.soft_idr_threshold == None:
-                if args.idr_threshold != None:
-                    args.soft_idr_threshold = args.idr_threshold
-                else:
-                    args.soft_idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
         except ImportError:
             idr.log("WARNING: matplotlib does not appear to be installed and "\
                     +"is required for plotting - turning plotting off.", 
