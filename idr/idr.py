@@ -423,7 +423,7 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--peak-merge-method', 
                          choices=["sum", "avg", "min", "max"], default=None,
         help="Which method to use for merging peaks.\n" \
-              + "\tDefault: 'mean' for signal/score, 'min' for p/q-value.")
+              + "\tDefault: 'sum' for signal/score/column indexes, 'min' for p/q-value.")
 
     parser.add_argument( '--initial-mu', type=float, default=idr.DEFAULT_MU,
         help="Initial value of mu. Default: %.2f" % idr.DEFAULT_MU)
@@ -508,7 +508,7 @@ def load_samples(args):
         elif signal_index in (4,6):
             peak_merge_fn = sum
         else:
-            peak_merge_fn = mean
+            peak_merge_fn = min
         if args.input_file_type == 'narrowPeak':
             summit_index = 9
         else:
@@ -519,25 +519,29 @@ def load_samples(args):
             load_bed(args.peak_list, signal_index) 
             if args.peak_list != None else None)
     elif args.input_file_type in ['bed', ]:
-        if args.rank != None: 
-            if args.rank == 'score':
-                signal_index = 4
-            else:
-                try: signal_index = int(args.rank)
-                except ValueError:
-                    raise ValueError("For bed files --signal-type must either "\
-                                     +"be set to score or an index specifying "\
-                                     +"the column to use.")
-        else:
-            signal_index = 4
+        # set the default
+        if args.rank == None: 
             signal_type = 'score'
+
+        if args.rank == 'score':
+            signal_type = 'score'
+            signal_index = 4
+        else:
+            try: 
+                signal_index = int(args.rank) - 1
+                signal_type = "COL%i" % (signal_index + 1)
+            except ValueError:
+                raise ValueError("For bed files --signal-type must either "\
+                                 +"be set to score or an index specifying "\
+                                 +"the column to use.")
         
-        if args.peak_merge_method != None:
+        if args.peak_merge_method == None:
+            peak_merge_fn = sum
+        else:
             peak_merge_fn = {
                 "sum": sum, "avg": mean, "min": min, "max": max}[
                     args.peak_merge_method]
-        else:
-            peak_merge_fn = sum
+        
         f1, f2 = [load_bed(fp, signal_index) for fp in args.samples]
         oracle_pks =  (
             load_bed(args.peak_list, signal_index) 
