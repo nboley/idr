@@ -368,7 +368,6 @@ def parse_args():
 Program: IDR (Irreproducible Discovery Rate)
 Version: {PACKAGE_VERSION}
 Contact: Nathan Boley <npboley@gmail.com>
-         Nikhil R Podduturi <nikhilrp@stanford.edu>
 """.format(PACKAGE_VERSION=idr.__version__))
 
     def PossiblyGzippedFile(fname):
@@ -457,6 +456,9 @@ Contact: Nathan Boley <npboley@gmail.com>
                          help="Print out additional debug information")
     parser.add_argument( '--quiet', action="store_true", default=False, 
                          help="Don't print any status messages")
+
+    parser.add_argument('--version', action='version', 
+                        version='IDR %s' % grit.__version__)
 
     args = parser.parse_args()
 
