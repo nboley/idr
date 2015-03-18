@@ -49,7 +49,7 @@ def load_bed(fp, signal_index, peak_summit_index=None):
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
-def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
+def merge_peaks_in_contig(all_s_peaks, pk_agg_fn, oracle_pks=None,
                           use_nonoverlapping_peaks=False):
     """Merge peaks in a single contig/strand.
     
@@ -58,11 +58,13 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
     # merge and sort all peaks, keeping track of which sample they originated in
     if oracle_pks == None: oracle_pks_iter = []
     else: oracle_pks_iter = oracle_pks
+    #all_intervals = sorted(chain(
+    #        ((pk,1) for pk in s1_peaks),
+    #        ((pk,2) for pk in s2_peaks),
+    #        ((pk,0) for pk in oracle_pks_iter)))
+
     all_intervals = sorted(chain(
-            ((pk,1) for pk in s1_peaks),
-            ((pk,2) for pk in s2_peaks),
-            ((pk,0) for pk in oracle_pks_iter)))
-    
+            *[((pk,1) for pk in s_peaks) for s_peaks in all_s_peaks]))
     # grp overlapping intervals. Since they're already sorted, all we need
     # to do is check if the current interval overlaps the previous interval
     grpd_intervals = [[],]
@@ -101,7 +103,7 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
         if not use_nonoverlapping_peaks:
             if any(0 == len(peaks) for peaks in grpd_peaks.values()):
                 continue
-
+            
         # find the merged peak summit
         # note that we can iterate through the values because 
         # grpd_peaks is an ordered dict
@@ -111,7 +113,8 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
             if oracle_pks != None and sample_id != 0: continue
             
             # initialize the summit to the first peak
-            replicate_summit, summit_signal = pks[0].summit, pks[0].signal
+            try: replicate_summit, summit_signal = pks[0].summit, pks[0].signal
+            except IndexError: replicate_summit, summit_signal =  None, -1e9
             # if there are more peaks, take the summit that corresponds to the 
             # replicate peak with the highest signal value
             for pk in pks[1:]:
@@ -126,7 +129,7 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
         
         # note that we can iterate through the values because 
         # grpd_peaks is an ordered dict
-        signals = [pk_agg_fn(pk.signal for pk in pks)
+        signals = [pk_agg_fn(pk.signal for pk in pks) if len(pks) > 0 else 0
                   for pks in grpd_peaks.values()]
         merged_pk = (pk_start, pk_stop, summit, 
                      pk_agg_fn(signals), signals, grpd_peaks)
@@ -134,7 +137,7 @@ def merge_peaks_in_contig(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
     
     return merged_pks
 
-def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None, 
+def merge_peaks(all_s_peaks, pk_agg_fn, oracle_pks=None, 
                 use_nonoverlapping_peaks=False):
     """Merge peaks over all contig/strands
     
@@ -144,7 +147,7 @@ def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
     if oracle_pks != None:
         contigs = sorted(oracle_pks.keys())
     else:
-        contigs = sorted(set(chain(s1_peaks.keys(), s2_peaks.keys())))
+        contigs = sorted(set(chain(*[list(s_peaks.keys()) for s_peaks in all_s_peaks])))
     
     merged_peaks = []
     for key in contigs:
@@ -157,7 +160,8 @@ def merge_peaks(s1_peaks, s2_peaks, pk_agg_fn, oracle_pks=None,
         # since s*_peaks are default dicts, it will never raise a key error, 
         # but instead return an empty list which is what we want
         merged_contig_peaks = merge_peaks_in_contig(
-            s1_peaks[key], s2_peaks[key], pk_agg_fn, contig_oracle_pks, 
+            [s_peaks[key] for s_peaks in all_s_peaks], 
+            pk_agg_fn, contig_oracle_pks, 
             use_nonoverlapping_peaks=use_nonoverlapping_peaks)
         merged_peaks.extend(
             MergedPeak(*(key + pk)) for pk in merged_contig_peaks)
