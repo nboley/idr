@@ -528,6 +528,10 @@ def load_samples(args):
                     raise ValueError("For bed files --signal-type must either "\
                                      +"be set to score or an index specifying "\
                                      +"the column to use.")
+        else:
+            signal_index = 4
+            signal_type = 'score'
+        
         if args.peak_merge_method != None:
             peak_merge_fn = {
                 "sum": sum, "avg": mean, "min": min, "max": max}[

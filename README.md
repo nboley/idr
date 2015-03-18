@@ -12,7 +12,16 @@ Irreproducible Discovery Rate (IDR)
 git clone --recursive https://github.com/nboley/idr.git
 ```
 
-* Then follow the commands below 
+# Install the following dependencies
+- python3
+- python3 headers 
+- numpy
+- setuptools
+
+In Ubuntu 14.04+ one can run: 
+(sudo) apt-get install python3-dev python3-numpy python3-setuptools
+
+* Then run the following commands 
 ```
 (sudo) python3 setup.py install
 ```
