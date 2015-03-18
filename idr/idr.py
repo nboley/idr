@@ -458,7 +458,7 @@ Contact: Nathan Boley <npboley@gmail.com>
                          help="Don't print any status messages")
 
     parser.add_argument('--version', action='version', 
-                        version='IDR %s' % grit.__version__)
+                        version='IDR %s' % idr.__version__)
 
     args = parser.parse_args()
 
