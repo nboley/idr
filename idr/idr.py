@@ -311,8 +311,8 @@ def fit_model_and_calc_idr(r1, r2,
 
 def write_results_to_file(merged_peaks, output_file, 
                           output_file_type, signal_type,
-                          max_allowed_idr=idr.DEFAULT_IDR_THRESH,
-                          soft_max_allowed_idr=idr.DEFAULT_SOFT_IDR_THRESH,
+                          max_allowed_idr,
+                          soft_max_allowed_idr,
                           localIDRs=None, IDRs=None, 
                           useBackwardsCompatibleOutput=False):
     if useBackwardsCompatibleOutput:
@@ -399,7 +399,7 @@ Contact: Nathan Boley <npboley@gmail.com>
                          default=sys.stderr,
                          help='File to write output to. Default: stderr')
     
-    parser.add_argument( '--idr-threshold', "-i", type=float, 
+    parser.add_argument( '--idr-threshold', "-i", type=float, default=None,
         help="Only return peaks with a global idr threshold below this value."\
             +"\nDefault: report all peaks")
     parser.add_argument( '--soft-idr-threshold', type=float, default=None, 
@@ -615,9 +615,10 @@ def main():
         args.output_file, 
         args.input_file_type, 
         signal_type,
-        max_allowed_idr=args.idr_threshold,
         localIDRs=localIDRs, 
         IDRs=IDRs,
+        max_allowed_idr=args.idr_threshold,
+        soft_max_allowed_idr=args.soft_idr_threshold,
         useBackwardsCompatibleOutput=args.use_old_output_format)
     
     args.output_file.close()
