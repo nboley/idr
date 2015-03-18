@@ -598,7 +598,7 @@ def main():
             import matplotlib.pyplot
             
             colors = numpy.full(len(r1), 'k', dtype=str)
-            colors[IDRs < args.soft_idr_threshold] = 'r'
+            colors[IDRs > args.soft_idr_threshold] = 'r'
 
             matplotlib.pyplot.axis([0, 1, 0, 1])
             matplotlib.pyplot.xlabel(args.samples[0].name)
