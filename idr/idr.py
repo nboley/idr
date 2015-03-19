@@ -214,20 +214,17 @@ def build_idr_output_line_with_bed6(
     return "\t".join(rv)
 
 def build_backwards_compatible_idr_output_line(
-        contig, strand, merged_start, merged_stop, 
-        signals, merged_peak, IDR, localIDR):
-    rv = [contig,]
-    for signal, key in zip(signals, (1,2)):
-        if len(merged_peak[key]) == 0: 
-            rv.extend(("-1", "-1"))
-        else:
-            rv.append( "%i" % min(x[0] for x in merged_peak[key]))
-            rv.append( "%i" % max(x[1] for x in merged_peak[key]))
+        m_pk, IDR, localIDR, output_file_type, signal_type):
+    rv = [m_pk.chrm,]
+    for key, signal in enumerate(m_pk.signals):
+        rv.append( "%i" % min(x.start for x in m_pk.pks[key+1]))
+        rv.append( "%i" % max(x.stop for x in m_pk.pks[key+1]))
+        rv.append( "." )
         rv.append( "%.5f" % signal )
     
     rv.append("%.5f" % localIDR)
     rv.append("%.5f" % IDR)
-    rv.append(strand)
+    rv.append(m_pk.strand)
         
     return "\t".join(rv)
 
