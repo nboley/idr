@@ -17,9 +17,10 @@ git clone --recursive https://github.com/nboley/idr.git
 - python3 headers 
 - numpy
 - setuptools
+- matplotlib (only required for plotting the results)
 
 In Ubuntu 14.04+ one can run: 
-(sudo) apt-get install python3-dev python3-numpy python3-setuptools
+(sudo) apt-get install python3-dev python3-numpy python3-setuptools python3-matplotlib
 
 * Then run the following commands 
 ```
