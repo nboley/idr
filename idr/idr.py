@@ -401,7 +401,8 @@ Contact: Nathan Boley <npboley@gmail.com>
             +"\nDefault: report all peaks")
     parser.add_argument( '--soft-idr-threshold', type=float, default=None, 
         help="Report statistics for peaks with a global idr below this "\
-            +"value but return all peaks.\nDefault: --idr if set else %.2f")
+        +"value but return all peaks.\nDefault: --idr if set else %.2f" \
+                         % idr.DEFAULT_SOFT_IDR_THRESH)
 
     parser.add_argument( '--use-old-output-format', 
                          action='store_true', default=False,
