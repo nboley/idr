@@ -595,13 +595,15 @@ def main():
             matplotlib.use('Agg')
             import matplotlib.pyplot
             
-            colors = numpy.full(len(r1), 'k', dtype=str)
+            colors = numpy.zeros(len(r1), dtype=str)
+            colors[:] = 'k'
             colors[IDRs > args.soft_idr_threshold] = 'r'
 
             matplotlib.pyplot.axis([0, 1, 0, 1])
             matplotlib.pyplot.xlabel(args.samples[0].name)
             matplotlib.pyplot.ylabel(args.samples[1].name)
-            matplotlib.pyplot.title("IDR Ranks - (red <= %.2f)" % args.plot)
+            matplotlib.pyplot.title(
+                "IDR Ranks - (red >= %.2f IDR)" % args.soft_idr_threshold)
             matplotlib.pyplot.scatter((r1+1)/float(len(r1)+1), 
                                       (r2+1)/float(len(r2)+1), 
                                       c=colors,
