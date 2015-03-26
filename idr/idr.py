@@ -57,14 +57,14 @@ def merge_peaks_in_contig(all_s_peaks, pk_agg_fn, oracle_pks=None,
     """
     # merge and sort all peaks, keeping track of which sample they originated in
     if oracle_pks == None: oracle_pks_iter = []
-    else: oracle_pks_iter = oracle_pks
-    #all_intervals = sorted(chain(
-    #        ((pk,1) for pk in s1_peaks),
-    #        ((pk,2) for pk in s2_peaks),
-    #        ((pk,0) for pk in oracle_pks_iter)))
+    else: oracle_pks_iter = oracle_pks_iter
 
-    all_intervals = sorted(chain(
-            *[((pk,1) for pk in s_peaks) for s_peaks in all_s_peaks]))
+    # merge and sort all of the intervals, leeping track of their source
+    all_intervals = []
+    for sample_id, peaks in enumerate([oracle_pks_iter,] + all_s_peaks):
+        all_intervals.extend((pk,sample_id) for pk in peaks)
+    all_intervals.sort()
+    
     # grp overlapping intervals. Since they're already sorted, all we need
     # to do is check if the current interval overlaps the previous interval
     grpd_intervals = [[],]
@@ -83,7 +83,7 @@ def merge_peaks_in_contig(all_s_peaks, pk_agg_fn, oracle_pks=None,
     for intervals in grpd_intervals:
         # grp peaks by their source, and calculate the merged
         # peak boundaries
-        grpd_peaks = OrderedDict(((1, []), (2, [])))
+        grpd_peaks = OrderedDict([(i+1, []) for i in range(len(all_s_peaks))])
         pk_start, pk_stop = 1e12, -1
         for interval, sample_id in intervals:
             # if we've provided a unified peak set, ignore any intervals that 
@@ -148,7 +148,7 @@ def merge_peaks(all_s_peaks, pk_agg_fn, oracle_pks=None,
         contigs = sorted(oracle_pks.keys())
     else:
         contigs = sorted(set(chain(*[list(s_peaks.keys()) for s_peaks in all_s_peaks])))
-    
+
     merged_peaks = []
     for key in contigs:
         # check to see if we've been provided a peak list and, if so, 
@@ -345,6 +345,8 @@ def write_results_to_file(merged_peaks, output_file,
             merged_peak, IDR, localIDR, output_file_type, signal_type)
         print( opline, file=output_file )
 
+    if len(merged_peaks) == 0: return
+    
     idr.log(
         "Number of reported peaks - {}/{} ({:.1f}%)\n".format(
             num_peaks_passing_hard_thresh, len(merged_peaks),
@@ -559,7 +561,7 @@ def load_samples(args):
         
     # build a unified peak set
     idr.log("Merging peaks", 'VERBOSE')
-    merged_peaks = merge_peaks(f1, f2, peak_merge_fn, 
+    merged_peaks = merge_peaks([f1, f2], peak_merge_fn, 
                                oracle_pks, args.use_nonoverlapping_peaks)
     return merged_peaks, signal_type
 
@@ -581,7 +583,10 @@ def main():
             error_msg += "\nHint: Merged peaks were written to the output file"
             write_results_to_file(
                 merged_peaks, args.output_file,
-                args.output_file_type, args.signal_type)
+                args.input_file_type, signal_type,
+                max_allowed_idr=args.idr_threshold,
+                soft_max_allowed_idr=args.soft_idr_threshold)
+            
             raise ValueError(error_msg)
 
         localIDRs, IDRs = fit_model_and_calc_idr(
