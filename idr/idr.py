@@ -218,20 +218,17 @@ def build_idr_output_line_with_bed6(
     return "\t".join(rv)
 
 def build_backwards_compatible_idr_output_line(
-        contig, strand, merged_start, merged_stop, 
-        signals, merged_peak, IDR, localIDR):
-    rv = [contig,]
-    for signal, key in zip(signals, (1,2)):
-        if len(merged_peak[key]) == 0: 
-            rv.extend(("-1", "-1"))
-        else:
-            rv.append( "%i" % min(x[0] for x in merged_peak[key]))
-            rv.append( "%i" % max(x[1] for x in merged_peak[key]))
+        m_pk, IDR, localIDR, output_file_type, signal_type):
+    rv = [m_pk.chrm,]
+    for key, signal in enumerate(m_pk.signals):
+        rv.append( "%i" % min(x.start for x in m_pk.pks[key+1]))
+        rv.append( "%i" % max(x.stop for x in m_pk.pks[key+1]))
+        rv.append( "." )
         rv.append( "%.5f" % signal )
     
     rv.append("%.5f" % localIDR)
     rv.append("%.5f" % IDR)
-    rv.append(strand)
+    rv.append(m_pk.strand)
         
     return "\t".join(rv)
 
@@ -273,7 +270,7 @@ def fit_model_and_calc_idr(r1, r2,
                            fix_mu=False, fix_sigma=False ):
     # in theory we would try to find good starting point here,
     # but for now just set it to somethign reasonable
-    if starting_point == None:
+    if type(starting_point) == type(None):
         starting_point = (DEFAULT_MU, DEFAULT_SIGMA, 
                           DEFAULT_RHO, DEFAULT_MIX_PARAM)
     
@@ -315,8 +312,8 @@ def fit_model_and_calc_idr(r1, r2,
 
 def write_results_to_file(merged_peaks, output_file, 
                           output_file_type, signal_type,
-                          max_allowed_idr=idr.DEFAULT_IDR_THRESH,
-                          soft_max_allowed_idr=idr.DEFAULT_SOFT_IDR_THRESH,
+                          max_allowed_idr,
+                          soft_max_allowed_idr,
                           localIDRs=None, IDRs=None, 
                           useBackwardsCompatibleOutput=False):
     if useBackwardsCompatibleOutput:
@@ -372,7 +369,6 @@ def parse_args():
 Program: IDR (Irreproducible Discovery Rate)
 Version: {PACKAGE_VERSION}
 Contact: Nathan Boley <npboley@gmail.com>
-         Nikhil R Podduturi <nikhilrp@stanford.edu>
 """.format(PACKAGE_VERSION=idr.__version__))
 
     def PossiblyGzippedFile(fname):
@@ -404,13 +400,12 @@ Contact: Nathan Boley <npboley@gmail.com>
                          default=sys.stderr,
                          help='File to write output to. Default: stderr')
     
-    parser.add_argument( '--idr-threshold', "-i", type=float, 
-                         default=idr.DEFAULT_IDR_THRESH, 
+    parser.add_argument( '--idr-threshold', "-i", type=float, default=None,
         help="Only return peaks with a global idr threshold below this value."\
             +"\nDefault: report all peaks")
     parser.add_argument( '--soft-idr-threshold', type=float, default=None, 
         help="Report statistics for peaks with a global idr below this "\
-            +"value but return all peaks.\nDefault: --idr if set else %.2f"
+        +"value but return all peaks.\nDefault: --idr if set else %.2f" \
                          % idr.DEFAULT_SOFT_IDR_THRESH)
 
     parser.add_argument( '--use-old-output-format', 
@@ -427,7 +422,7 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--peak-merge-method', 
                          choices=["sum", "avg", "min", "max"], default=None,
         help="Which method to use for merging peaks.\n" \
-              + "\tDefault: 'mean' for signal/score, 'min' for p/q-value.")
+              + "\tDefault: 'sum' for signal/score/column indexes, 'min' for p/q-value.")
 
     parser.add_argument( '--initial-mu', type=float, default=idr.DEFAULT_MU,
         help="Initial value of mu. Default: %.2f" % idr.DEFAULT_MU)
@@ -462,6 +457,9 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--quiet', action="store_true", default=False, 
                          help="Don't print any status messages")
 
+    parser.add_argument('--version', action='version', 
+                        version='IDR %s' % idr.__version__)
+
     args = parser.parse_args()
 
     idr.log_ofp = args.log_output_file
@@ -474,14 +472,19 @@ Contact: Nathan Boley <npboley@gmail.com>
         idr.QUIET = True 
         idr.VERBOSE = False
 
+    if args.idr_threshold == None and args.soft_idr_threshold == None:
+        args.idr_threshold = idr.DEFAULT_IDR_THRESH
+        args.soft_idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
+    elif args.soft_idr_threshold == None:
+        assert args.idr_threshold != None
+        args.soft_idr_threshold = args.idr_threshold
+    elif args.idr_threshold == None:
+        assert args.soft_idr_threshold != None
+        args.idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
+
     if args.plot:
         try: 
             import matplotlib
-            if args.soft_idr_threshold == None:
-                if args.idr_threshold != None:
-                    args.soft_idr_threshold = args.idr_threshold
-                else:
-                    args.soft_idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
         except ImportError:
             idr.log("WARNING: matplotlib does not appear to be installed and "\
                     +"is required for plotting - turning plotting off.", 
@@ -512,7 +515,7 @@ def load_samples(args):
         elif signal_index in (4,6):
             peak_merge_fn = sum
         else:
-            peak_merge_fn = mean
+            peak_merge_fn = min
         if args.input_file_type == 'narrowPeak':
             summit_index = 9
         else:
@@ -523,21 +526,29 @@ def load_samples(args):
             load_bed(args.peak_list, signal_index) 
             if args.peak_list != None else None)
     elif args.input_file_type in ['bed', ]:
-        if args.rank != None: 
-            if args.rank == 'score':
-                signal_index = 4
-            else:
-                try: signal_index = int(args.rank)
-                except ValueError:
-                    raise ValueError("For bed files --signal-type must either "\
-                                     +"be set to score or an index specifying "\
-                                     +"the column to use.")
-        if args.peak_merge_method != None:
+        # set the default
+        if args.rank == None: 
+            signal_type = 'score'
+
+        if args.rank == 'score':
+            signal_type = 'score'
+            signal_index = 4
+        else:
+            try: 
+                signal_index = int(args.rank) - 1
+                signal_type = "COL%i" % (signal_index + 1)
+            except ValueError:
+                raise ValueError("For bed files --signal-type must either "\
+                                 +"be set to score or an index specifying "\
+                                 +"the column to use.")
+        
+        if args.peak_merge_method == None:
+            peak_merge_fn = sum
+        else:
             peak_merge_fn = {
                 "sum": sum, "avg": mean, "min": min, "max": max}[
                     args.peak_merge_method]
-        else:
-            peak_merge_fn = sum
+        
         f1, f2 = [load_bed(fp, signal_index) for fp in args.samples]
         oracle_pks =  (
             load_bed(args.peak_list, signal_index) 
@@ -588,13 +599,15 @@ def main():
             matplotlib.use('Agg')
             import matplotlib.pyplot
             
-            colors = numpy.full(len(r1), 'k', dtype=str)
-            colors[IDRs < args.soft_idr_threshold] = 'r'
+            colors = numpy.zeros(len(r1), dtype=str)
+            colors[:] = 'k'
+            colors[IDRs > args.soft_idr_threshold] = 'r'
 
             matplotlib.pyplot.axis([0, 1, 0, 1])
             matplotlib.pyplot.xlabel(args.samples[0].name)
             matplotlib.pyplot.ylabel(args.samples[1].name)
-            matplotlib.pyplot.title("IDR Ranks - (red <= %.2f)" % args.plot)
+            matplotlib.pyplot.title(
+                "IDR Ranks - (red >= %.2f IDR)" % args.soft_idr_threshold)
             matplotlib.pyplot.scatter((r1+1)/float(len(r1)+1), 
                                       (r2+1)/float(len(r2)+1), 
                                       c=colors,
@@ -606,9 +619,10 @@ def main():
         args.output_file, 
         args.input_file_type, 
         signal_type,
-        max_allowed_idr=args.idr_threshold,
         localIDRs=localIDRs, 
         IDRs=IDRs,
+        max_allowed_idr=args.idr_threshold,
+        soft_max_allowed_idr=args.soft_idr_threshold,
         useBackwardsCompatibleOutput=args.use_old_output_format)
     
     args.output_file.close()

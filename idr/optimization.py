@@ -73,7 +73,7 @@ def old_estimator(ranks_1, ranks_2):
     return theta, log_lhd_loss(ranks_1, ranks_2, theta )
 
 
-def EM_step(z1, z2, starting_point, fix_mu=False, fix_sigma=False):
+def EM_step(z1, z2, starting_point):
     i_mu, i_sigma, i_rho, i_p = starting_point
     
     ez = calc_post_membership_prbs(starting_point, z1, z2)
@@ -96,8 +96,6 @@ def EM_step(z1, z2, starting_point, fix_mu=False, fix_sigma=False):
 
     p = ez_sum/len(ez)
     
-    if fix_mu: mu = i_mu
-    if fix_sigma: sigma = i_sigma
     return numpy.array([mu, sigma, rho, p])
 
 def grid_search(r1, r2 ):
@@ -309,24 +307,31 @@ def find_local_maximum_PV(r1, r2, theta, N=100, EPS=1e-6,
 
 
 def clip_model_params(init_theta):
+    theta_changed = False
     theta = init_theta.copy()
     if theta[0] < MIN_MU:
         theta[0] = MIN_MU
+        theta_changed = True
 
     if theta[1] < MIN_SIGMA:
         theta[1] = MIN_SIGMA
+        theta_changed = True
 
     if theta[2] < MIN_RHO:
         theta[2] = MIN_RHO
+        theta_changed = True
     elif theta[2] > MAX_RHO:
         theta[2] = MAX_RHO
+        theta_changed = True
 
     if theta[3] < MIN_MIX_PARAM:
         theta[3] = MIN_MIX_PARAM
+        theta_changed = True
     elif theta[3] > MAX_MIX_PARAM:
         theta[3] = MAX_MIX_PARAM
+        theta_changed = True
         
-    return theta, not (theta == init_theta).all()
+    return theta, theta_changed
 
 def CA_step(z1, z2, theta, index, min_val, max_val):
     """Take a single coordinate ascent step.
@@ -390,8 +395,7 @@ def EM_iteration(z1, z2, prev_theta, max_iter,
     init_lhd = calc_gaussian_mix_log_lhd(prev_theta, z1, z2)
     prev_lhd = init_lhd
     for i in range(max_iter):
-        theta = EM_step(
-            z1, z2, prev_theta, fix_mu=fix_mu, fix_sigma=fix_sigma)
+        theta = EM_step(z1, z2, prev_theta)
         theta, changed_params = clip_model_params(theta)
         new_lhd = calc_gaussian_mix_log_lhd(theta, z1, z2)
         # if the model is at the boundary, abort
@@ -420,11 +424,13 @@ def EMP_with_pseudo_value_algorithm(
     
     for i in range(N):
         prev_theta = theta
-        theta, new_lhd, changed_params = EM_iteration(
-            z1, z2, prev_theta, max_num_EM_iter, 
-            fix_mu=fix_mu, fix_sigma=fix_sigma, eps=EPS/10)
+        # EM only works in the unconstrained case
+        if not fix_mu and not fix_sigma:
+            theta, new_lhd, changed_params = EM_iteration(
+                z1, z2, prev_theta, max_num_EM_iter, 
+                fix_mu=fix_mu, fix_sigma=fix_sigma, eps=EPS/10)
         
-        if changed_params:
+        if fix_mu or fix_sigma or changed_params:
             theta = prev_theta
             theta, new_lhd = CA_iteration(
                 z1, z2, prev_theta, max_num_EM_iter, 

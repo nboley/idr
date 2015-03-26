@@ -1,6 +1,6 @@
 import sys
 
-__version__ = "2.0.0beta2"
+__version__ = "2.0.0beta3"
 
 DEBUG_LEVELS = {'ERROR', 'WARNING', None, 'VERBOSE', 'DEBUG'}
 ERROR_LEVELS = {'ERROR', 'WARNING'}
@@ -56,4 +56,4 @@ MIN_SIGMA = 0.20
 MAX_SIGMA = 20
 
 MIN_MU = 0.0
-MAX_MU = 20
+MAX_MU = 20.0
