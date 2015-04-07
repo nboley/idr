@@ -184,7 +184,7 @@ def build_idr_output_line_with_bed6(
     # initialize the line with the bed6 entires - these are 
     # present in all of the output types
     rv = [m_pk.chrm, str(m_pk.start), str(m_pk.stop), 
-          ".", "%i" % ((1-IDR)*1000), m_pk.strand]
+          ".", "%i" % (min(1000, int(-125*math.log2(IDR+1e-12)))), m_pk.strand]
     if output_file_type == 'bed':
         # if we just want a bed, there's nothing else to be done
         pass

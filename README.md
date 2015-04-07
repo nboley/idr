@@ -65,8 +65,9 @@ Name given to a region (preferably unique) for common peaks. Use '.'
 if no name is assigned.
 
 5.  score             int     
-Contains the scaled IDR value, int(1000*(1-IDR)). e.g. peaks with an IDR of 0 
-have a score of 1000, idr 0.1 have a score 900, idr 1.0 have a score of 0.
+Contains the scaled IDR value, min(int(log2(-125*IDR), 1000). e.g. peaks with 
+an IDR of 0 have a score of 1000, idr 0.05 have a score of int(-125*log2(0.05))
+= 540, and idr 1.0 has a score of 0.
 
 6.  strand         [+-.]   Use '.' if no strand is assigned.
 
