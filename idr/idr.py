@@ -438,7 +438,9 @@ Contact: Nathan Boley <npboley@gmail.com>
         help="Fix mu to the starting point and do not let it vary.")    
     parser.add_argument( '--fix-sigma', action='store_true', 
         help="Fix sigma to the starting point and do not let it vary.")    
-    
+
+    parser.add_argument( '--random-seed', type=int, default=0, 
+        help="The random seed value (sor braking ties). Default: 0") 
     parser.add_argument( '--max-iter', type=int, default=idr.MAX_ITER_DEFAULT, 
         help="The maximum number of optimization iterations. Default: %i" 
                          % idr.MAX_ITER_DEFAULT)
@@ -479,6 +481,8 @@ Contact: Nathan Boley <npboley@gmail.com>
     elif args.idr_threshold == None:
         assert args.soft_idr_threshold != None
         args.idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
+
+    numpy.random.seed(args.random_seed)
 
     if args.plot:
         try: 
