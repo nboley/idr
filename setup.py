@@ -42,7 +42,7 @@ def main():
                        "stable measure of the reproducibility of identified " +
                        "peaks."),
 
-        license = "GPL2",
+        license = "GPL3",
         keywords = "IDR",
         url = "https://github.com/nboley/idr",
 

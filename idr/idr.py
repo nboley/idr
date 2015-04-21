@@ -652,7 +652,7 @@ def main():
             error_msg += "\nHint: Merged peaks were written to the output file"
             write_results_to_file(
                 merged_peaks, args.output_file,
-                args.output_file_type, args.signal_type)
+                args.input_file_type, args.signal_type)
             raise ValueError(error_msg)
 
         localIDRs, IDRs = fit_model_and_calc_idr(

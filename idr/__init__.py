@@ -1,6 +1,6 @@
 import sys
 
-__version__ = "2.0.0beta3"
+__version__ = "2.0.0RC1"
 
 DEBUG_LEVELS = {'ERROR', 'WARNING', None, 'VERBOSE', 'DEBUG'}
 ERROR_LEVELS = {'ERROR', 'WARNING'}
