@@ -49,6 +49,126 @@ def load_bed(fp, signal_index, peak_summit_index=None):
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
+def iter_merge_grpd_intervals(
+        intervals, n_samples, pk_agg_fn,
+        use_oracle_pks, use_nonoverlapping_peaks):
+    # grp peaks by their source, and calculate the merged
+    # peak boundaries
+    grpd_peaks = OrderedDict([(i+1, []) for i in range(n_samples)])
+    pk_start, pk_stop = 1e12, -1
+    for interval, sample_id in intervals:
+        # if we've provided a unified peak set, ignore any intervals that 
+        # don't contain it for the purposes of generating the merged list
+        if (not use_oracle_pks) or sample_id == 0:
+            pk_start = min(interval.start, pk_start)
+            pk_stop = max(interval.stop, pk_stop)
+        # if this is an actual sample (ie not a merged peaks)
+        if sample_id > 0:
+            grpd_peaks[sample_id].append(interval)
+    
+    # if there are no identified peaks, continue (this can happen if 
+    # we have a merged peak list but no merged peaks overlap sample peaks)
+    if pk_stop == -1:
+        return None
+
+    # skip regions that dont have a peak in all replicates
+    if not use_nonoverlapping_peaks:
+        if any(0 == len(peaks) for peaks in grpd_peaks.values()):
+            return None
+
+    # find the merged peak summit
+    # note that we can iterate through the values because 
+    # grpd_peaks is an ordered dict
+    replicate_summits = []
+    for sample_id, pks in grpd_peaks.items():
+        # if an oracle peak set is specified, skip the replicates
+        if use_oracle_pks and sample_id != 0: 
+            continue
+
+        # initialize the summit to the first peak
+        try: replicate_summit, summit_signal = pks[0].summit, pks[0].signal
+        except IndexError: replicate_summit, summit_signal =  None, -1e9
+        # if there are more peaks, take the summit that corresponds to the 
+        # replicate peak with the highest signal value
+        for pk in pks[1:]:
+            if pk.summit != None and pk.signal > summit_signal:
+                replicate_summit, summit_signal = pk.summit, pk.signal
+        # make sure a peak summit was specified
+        if replicate_summit != None:
+            replicate_summits.append( replicate_summit )
+
+    summit = ( int(mean(replicate_summits)) 
+               if len(replicate_summits) > 0 else None )
+
+    # note that we can iterate through the values because 
+    # grpd_peaks is an ordered dict
+    signals = [pk_agg_fn(pk.signal for pk in pks) if len(pks) > 0 else 0
+              for pks in grpd_peaks.values()]
+    merged_pk = (pk_start, pk_stop, summit, 
+                 pk_agg_fn(signals), signals, grpd_peaks)
+
+    yield merged_pk
+    return
+
+def iter_matched_oracle_pks(
+        pks, n_samples, pk_agg_fn, use_nonoverlapping_peaks=False ):
+    """Match each oracle peak to it nearest replicate peaks.
+
+    """
+    oracle_pks = [pk for pk, sample_id in pks
+                  if sample_id == 0]
+    # if there are zero oracle peaks in this 
+    if len(oracle_pks) == 0: return None
+ 
+    # for each oracle peak, find score the replicate peaks
+    for oracle_pk in oracle_pks:
+        peaks_and_scores = OrderedDict([(i+1, []) for i in range(n_samples)])
+        for pk, sample_id in pks:
+            # skip oracle peaks
+            if sample_id == 0: continue
+            
+            # calculate the distance between summits, setting it to a large
+            # value in case the peaks dont have summits
+            summit_distance = sys.maxsize
+            if oracle_pk.summit != None and pk.summit != None:
+                summit_distance = abs(oracle_pk.summit - pk.summit)
+            # calculate the fraction overlap witht he oracle peak
+            overlap = (1 + min(oracle_pk.stop, pk.stop) 
+                       - max(oracle_pk.start, pk.start) ) 
+            overlap_frac = overlap/(oracle_pk.stop - oracle_pk.start + 1)
+            
+            peaks_and_scores[sample_id].append(
+                ((summit_distance, -overlap_frac, -pk.signal), pk))
+        
+        # if we want to use nonoverlapping peaks, add zero score peaks
+        # for any replicate that doesn't have a matching peak
+        if use_nonoverlapping_peaks:
+            for sample_id, pks in peaks_and_scores.items():
+                if len(pks) == 0: 
+                    pks.append(((0, 0.0, 0.0), interval))
+        
+        # skip regions that dont have a peak in all replicates. Note that if
+        # we're using non-overlapping peaks, then we jsut added them and so
+        # this will never evaluate to true
+        if any(0 == len(peaks) for peaks in peaks_and_scores.values()):
+            continue
+        
+        # build the aggregated signal value, which is jsut the signal value
+        # of the replicate peak witgh the closest match
+        signals = []
+        for pks in peaks_and_scores.values():
+            pks.sort()
+            signals.append(pks[0][1].signal)
+        new_pk = (oracle_pk.start, oracle_pk.stop, oracle_pk.summit, 
+                  pk_agg_fn(signals), 
+                  signals, 
+                  [oracle_pk,] + [[y[1] for y in x] 
+                                  for x in peaks_and_scores.values()])
+        yield new_pk
+    
+    return
+
+
 def merge_peaks_in_contig(all_s_peaks, pk_agg_fn, oracle_pks=None,
                           use_nonoverlapping_peaks=False):
     """Merge peaks in a single contig/strand.
@@ -56,9 +176,10 @@ def merge_peaks_in_contig(all_s_peaks, pk_agg_fn, oracle_pks=None,
     returns: The merged peaks. 
     """
     # merge and sort all peaks, keeping track of which sample they originated in
-    if oracle_pks == None: oracle_pks_iter = []
-    else: oracle_pks_iter = oracle_pks_iter
-
+    oracle_pks_iter = []
+    if oracle_pks != None: 
+        oracle_pks_iter = oracle_pks
+    
     # merge and sort all of the intervals, leeping track of their source
     all_intervals = []
     for sample_id, peaks in enumerate([oracle_pks_iter,] + all_s_peaks):
@@ -80,60 +201,19 @@ def merge_peaks_in_contig(all_s_peaks, pk_agg_fn, oracle_pks=None,
     # build the unified peak list, setting the score to 
     # zero if it doesn't exist in both replicates
     merged_pks = []
-    for intervals in grpd_intervals:
-        # grp peaks by their source, and calculate the merged
-        # peak boundaries
-        grpd_peaks = OrderedDict([(i+1, []) for i in range(len(all_s_peaks))])
-        pk_start, pk_stop = 1e12, -1
-        for interval, sample_id in intervals:
-            # if we've provided a unified peak set, ignore any intervals that 
-            # don't contain it for the purposes of generating the merged list
-            if oracle_pks == None or sample_id == 0:
-                pk_start = min(interval.start, pk_start)
-                pk_stop = max(interval.stop, pk_stop)
-            # if this is an actual sample (ie not a merged peaks)
-            if sample_id > 0:
-                grpd_peaks[sample_id].append(interval)
-
-        # if there are no identified peaks, continue (this can happen if 
-        # we have a merged peak list but no merged peaks overlap sample peaks)
-        if pk_stop == -1: continue
-        
-        # skip regions that dont have a peak in all replicates
-        if not use_nonoverlapping_peaks:
-            if any(0 == len(peaks) for peaks in grpd_peaks.values()):
-                continue
-            
-        # find the merged peak summit
-        # note that we can iterate through the values because 
-        # grpd_peaks is an ordered dict
-        replicate_summits = []
-        for sample_id, pks in grpd_peaks.items():
-            # if an oracle peak set is specified, skip the replicates
-            if oracle_pks != None and sample_id != 0: continue
-            
-            # initialize the summit to the first peak
-            try: replicate_summit, summit_signal = pks[0].summit, pks[0].signal
-            except IndexError: replicate_summit, summit_signal =  None, -1e9
-            # if there are more peaks, take the summit that corresponds to the 
-            # replicate peak with the highest signal value
-            for pk in pks[1:]:
-                if pk.summit != None and pk.signal > summit_signal:
-                    replicate_summit, summit_signal = pk.summit, pk.signal
-            # make sure a peak summit was specified
-            if replicate_summit != None:
-                replicate_summits.append( replicate_summit )
-        
-        summit = ( int(mean(replicate_summits)) 
-                   if len(replicate_summits) > 0 else None )
-        
-        # note that we can iterate through the values because 
-        # grpd_peaks is an ordered dict
-        signals = [pk_agg_fn(pk.signal for pk in pks) if len(pks) > 0 else 0
-                  for pks in grpd_peaks.values()]
-        merged_pk = (pk_start, pk_stop, summit, 
-                     pk_agg_fn(signals), signals, grpd_peaks)
-        merged_pks.append(merged_pk)
+    if oracle_pks == None:
+        for intervals in grpd_intervals:
+            for merged_pk in iter_merge_grpd_intervals(
+                    intervals, len(all_s_peaks), pk_agg_fn,
+                    use_oracle_pks=(oracle_pks != None),
+                    use_nonoverlapping_peaks = use_nonoverlapping_peaks):
+                merged_pks.append(merged_pk)
+    else:        
+        for intervals in grpd_intervals:
+            for merged_pk in iter_matched_oracle_pks(
+                    intervals, len(all_s_peaks), pk_agg_fn,
+                    use_nonoverlapping_peaks = use_nonoverlapping_peaks):
+                merged_pks.append(merged_pk)
     
     return merged_pks
 
@@ -314,8 +394,8 @@ def fit_model_and_calc_idr(r1, r2,
 
 def write_results_to_file(merged_peaks, output_file, 
                           output_file_type, signal_type,
-                          max_allowed_idr,
-                          soft_max_allowed_idr,
+                          max_allowed_idr=1.0,
+                          soft_max_allowed_idr=1.0,
                           localIDRs=None, IDRs=None, 
                           useBackwardsCompatibleOutput=False):
     if useBackwardsCompatibleOutput:
@@ -658,7 +738,7 @@ def main():
             error_msg += "\nHint: Merged peaks were written to the output file"
             write_results_to_file(
                 merged_peaks, args.output_file,
-                args.input_file_type, args.signal_type)
+                args.input_file_type, signal_type)
             raise ValueError(error_msg)
 
         localIDRs, IDRs = fit_model_and_calc_idr(
