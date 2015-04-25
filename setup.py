@@ -42,7 +42,7 @@ def main():
                        "stable measure of the reproducibility of identified " +
                        "peaks."),
 
-        license = "GPL2",
+        license = "GPL3",
         keywords = "IDR",
         url = "https://github.com/nboley/idr",
 
@@ -53,7 +53,7 @@ def main():
     """,
         classifiers=[
             "Programming Language :: Python :: 3",
-            "Development Status :: 4 - Beta",
+            "Development Status :: 5 - Production/Stable",
             "Topic :: Scientific/Engineering :: Bio-Informatics",
             "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
         ],

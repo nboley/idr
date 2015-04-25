@@ -188,7 +188,7 @@ def build_idr_output_line_with_bed6(
     # initialize the line with the bed6 entires - these are 
     # present in all of the output types
     rv = [m_pk.chrm, str(m_pk.start), str(m_pk.stop), 
-          ".", "%i" % ((1-IDR)*1000), m_pk.strand]
+          ".", "%i" % (min(1000, int(-125*math.log2(IDR+1e-12)))), m_pk.strand]
     if output_file_type == 'bed':
         # if we just want a bed, there's nothing else to be done
         pass
@@ -206,8 +206,8 @@ def build_idr_output_line_with_bed6(
     else:
         raise ValueError("Unrecognized output format '{}'".format(outputFormat))
 
-    rv.append("%.5f" % localIDR)    
-    rv.append("%.5f" % IDR)
+    rv.append("%.2f" % -math.log10(max(1e-5, localIDR)))    
+    rv.append("%.2f" % -math.log10(max(1e-5, IDR)))
     
     for key, signal in enumerate(m_pk.signals):
         # we add one tot he key because key=0 corresponds to the oracle peaks
@@ -249,10 +249,12 @@ def calc_IDR(theta, r1, r2):
     z1 = compute_pseudo_values(r1, mu, sigma, p, EPS=1e-12)
     z2 = compute_pseudo_values(r2, mu, sigma, p, EPS=1e-12)
     localIDR = 1-calc_post_membership_prbs(numpy.array(theta), z1, z2)
-    # 
-    # XXX 
     if idr.FILTER_PEAKS_BELOW_NOISE_MEAN:
         localIDR[z1 + z2 < 0] = 1 
+
+    # it doesn't make sense for the IDR values to be smaller than the 
+    # optimization tolerance
+    localIDR = numpy.clip(localIDR, idr.CONVERGENCE_EPS_DEFAULT, 1)
     local_idr_order = localIDR.argsort()
     ordered_local_idr = localIDR[local_idr_order]
     ordered_local_idr_ranks = rankdata( ordered_local_idr, method='max' )
@@ -442,7 +444,9 @@ Contact: Nathan Boley <npboley@gmail.com>
         help="Fix mu to the starting point and do not let it vary.")    
     parser.add_argument( '--fix-sigma', action='store_true', 
         help="Fix sigma to the starting point and do not let it vary.")    
-    
+
+    parser.add_argument( '--random-seed', type=int, default=0, 
+        help="The random seed value (sor braking ties). Default: 0") 
     parser.add_argument( '--max-iter', type=int, default=idr.MAX_ITER_DEFAULT, 
         help="The maximum number of optimization iterations. Default: %i" 
                          % idr.MAX_ITER_DEFAULT)
@@ -483,6 +487,8 @@ Contact: Nathan Boley <npboley@gmail.com>
     elif args.idr_threshold == None:
         assert args.soft_idr_threshold != None
         args.idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
+
+    numpy.random.seed(args.random_seed)
 
     if args.plot:
         try: 
@@ -565,12 +571,81 @@ def load_samples(args):
                                oracle_pks, args.use_nonoverlapping_peaks)
     return merged_peaks, signal_type
 
+def plot(args, scores, ranks, IDRs):
+    assert len(args.samples) == 2
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot
+
+    colors = numpy.zeros(len(ranks[0]), dtype=str)
+    colors[:] = 'k'
+    colors[IDRs > args.soft_idr_threshold] = 'r'
+    
+    #matplotlib.rc('font', family='normal', weight='bold', size=10)
+
+    fig = matplotlib.pyplot.figure( num=None, figsize=(12, 12))
+
+    matplotlib.pyplot.subplot(221)
+    matplotlib.pyplot.axis([0, 1, 0, 1])
+    matplotlib.pyplot.xlabel("Sample 1 Rank")
+    matplotlib.pyplot.ylabel("Sample 2 Rank")
+    matplotlib.pyplot.title(
+        "Ranks - (red >= %.2f IDR)" % args.soft_idr_threshold)
+    matplotlib.pyplot.scatter((ranks[0]+1)/float(len(ranks[0])+1), 
+                              (ranks[1]+1)/float(len(ranks[1])+1), 
+                              c=colors,
+                              alpha=0.05)
+
+    matplotlib.pyplot.subplot(222)
+    matplotlib.pyplot.xlabel("Sample 1 log10 Score")
+    matplotlib.pyplot.ylabel("Sample 2 log10 Score")
+    matplotlib.pyplot.title(
+        "Log10 Scores - (red >= %.2f IDR)" % args.soft_idr_threshold)
+    matplotlib.pyplot.scatter(numpy.log10(scores[0]+1),
+                              numpy.log10(scores[1]+1), 
+                              c=colors, alpha=0.05)
+    
+    def make_boxplots(sample_i):
+        groups = defaultdict(list)
+        norm_ranks = (ranks[sample_i]+1)/float(len(ranks[sample_i])+1)
+        for rank, idr_val in zip(norm_ranks, -numpy.log10(IDRs)):
+            groups[int(20*rank)].append(float(idr_val))
+        group_labels = sorted((x + 2.5)/20 for x in groups.keys())
+        groups = [x[1] for x in sorted(groups.items())]
+
+        matplotlib.pyplot.title(
+            "Sample %i Ranks vs IDR Values" % (sample_i+1))
+        matplotlib.pyplot.axis([0, 21, 
+                                0, 0.5-math.log10(idr.CONVERGENCE_EPS_DEFAULT)])
+        matplotlib.pyplot.xlabel("Sample %i Peak Rank" % (sample_i+1))
+        matplotlib.pyplot.ylabel("-log10 IDR")
+        matplotlib.pyplot.xticks([], [])
+
+        matplotlib.pyplot.boxplot(groups, sym="")    
+
+        matplotlib.pyplot.axis([0, 21, 
+                                0, 0.5-math.log10(idr.CONVERGENCE_EPS_DEFAULT)])
+        matplotlib.pyplot.scatter(20*norm_ranks, 
+                                  -numpy.log10(IDRs), 
+                                  alpha=0.01, c='black')
+
+    matplotlib.pyplot.subplot(223)
+    make_boxplots(0)
+
+    matplotlib.pyplot.subplot(224)
+    make_boxplots(1)
+
+    matplotlib.pyplot.savefig(args.output_file.name + ".png")
+    return
+
 def main():
     args = parse_args()
 
     # load and merge peaks
     merged_peaks, signal_type = load_samples(args)
-    
+    s1 = numpy.array([pk.signals[0] for pk in merged_peaks])
+    s2 = numpy.array([pk.signals[1] for pk in merged_peaks])
+
     # build the ranks vector
     idr.log("Ranking peaks", 'VERBOSE')
     r1, r2 = build_rank_vectors(merged_peaks)
@@ -583,10 +658,7 @@ def main():
             error_msg += "\nHint: Merged peaks were written to the output file"
             write_results_to_file(
                 merged_peaks, args.output_file,
-                args.input_file_type, signal_type,
-                max_allowed_idr=args.idr_threshold,
-                soft_max_allowed_idr=args.soft_idr_threshold)
-            
+                args.input_file_type, args.signal_type)
             raise ValueError(error_msg)
 
         localIDRs, IDRs = fit_model_and_calc_idr(
@@ -600,24 +672,7 @@ def main():
         
         if args.plot:
             assert len(args.samples) == 2
-            import matplotlib
-            matplotlib.use('Agg')
-            import matplotlib.pyplot
-            
-            colors = numpy.zeros(len(r1), dtype=str)
-            colors[:] = 'k'
-            colors[IDRs > args.soft_idr_threshold] = 'r'
-
-            matplotlib.pyplot.axis([0, 1, 0, 1])
-            matplotlib.pyplot.xlabel(args.samples[0].name)
-            matplotlib.pyplot.ylabel(args.samples[1].name)
-            matplotlib.pyplot.title(
-                "IDR Ranks - (red >= %.2f IDR)" % args.soft_idr_threshold)
-            matplotlib.pyplot.scatter((r1+1)/float(len(r1)+1), 
-                                      (r2+1)/float(len(r2)+1), 
-                                      c=colors,
-                                      alpha=0.05)
-            matplotlib.pyplot.savefig(args.output_file.name + ".png")
+            plot(args, [s1, s2], [r1, r2], IDRs)
     
     num_peaks_passing_thresh = write_results_to_file(
         merged_peaks, 
