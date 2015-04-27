@@ -476,8 +476,8 @@ Contact: Nathan Boley <npboley@gmail.com>
             +"\nDefaults:\n\tnarrowPeak/broadPeak: signal.value\n\tbed: score")
     
     default_ofname = "idrValues.txt"
-    parser.add_argument( '--output-file', "-o", type=argparse.FileType("w"), 
-                         default=open(default_ofname, "w"), 
+    parser.add_argument( '--output-file', "-o", 
+                         default=default_ofname, 
         help='File to write output to.\nDefault: {}'.format(default_ofname))
 
     parser.add_argument( '--log-output-file', "-l", type=argparse.FileType("w"),
@@ -548,6 +548,7 @@ Contact: Nathan Boley <npboley@gmail.com>
 
     args = parser.parse_args()
 
+    args.output_file = open(args.output_file, "w")
     idr.log_ofp = args.log_output_file
     
     if args.verbose: 
