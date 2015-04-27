@@ -5,14 +5,16 @@ Irreproducible Discovery Rate (IDR)
 
 <p align="justify">The method was developed by <a href="http://www.personal.psu.edu/users/q/u/qul12/index.html">Qunhua Li</a> and <a href="http://www.stat.berkeley.edu/~bickel/">Peter Bickel</a>'s group and is extensively used by the ENCODE and modENCODE  projects and is part of their ChIP-seq guidelines and standards.</p>
 
-### Building IDR
+
+Installation
+------------
 
 * Get the current repo
 ```
-git clone --recursive https://github.com/nboley/idr.git
+wget https://github.com/nboley/idr/archive/2.0.0.zip
 ```
 
-# Install the following dependencies
+* Install the dependencies
 - python3
 - python3 headers 
 - numpy
@@ -22,12 +24,27 @@ git clone --recursive https://github.com/nboley/idr.git
 In Ubuntu 14.04+ one can run: 
 (sudo) apt-get install python3-dev python3-numpy python3-setuptools python3-matplotlib
 
-* Then run the following commands 
+In a shared environment, the dependencies and idr package may need to be installed locally. [Anaconda](http://continuum.io/downloads#py34) largely automates this process. To install anaconda, which includes all the neessary dependencies:
+
 ```
-(sudo) python3 setup.py install
+Download [Anaconda3-2.2.0-Linux-x86_64.sh](http://continuum.io/downloads#py34) 
+bash Anaconda3-2.2.0-Linux-x86_64.sh
 ```
 
-### Usage
+* Download and unzip the idr code
+```
+wget https://github.com/nboley/idr/archive/2.0.0.zip
+unzip 2.0.0.zip
+cd 2.0.0/
+```
+
+* Then install idr 
+```
+python3 setup.py install
+```
+
+Usage
+-----
 
 List all the options
  
@@ -41,13 +58,40 @@ Sample idr run using test peak files in the repo
 idr --samples ../idr/test/data/peak1 ../idr/test/data/peak2
 ```
 
-### Output format
+Run idr using an oracle peak list (e.g. peaks called from merged replicates):
+
+```
+idr --samples ../idr/test/data/peak1 ../idr/test/data/peak2 --peak-list ../idr/test/data/merged_peaks
+```
+
+### Peak matching
+
+The method in which peaks are matched can significantly affect the output. We have chosen defaults that we believe are reaosnable in the vast majoroity of cases, but it may be worth exploring the various options for your data set.
+
+* --peak-list is *not* provided
+
+Peaks are grouped by overlap and then merged. The merged peak aggregate value is determined by --peak-merge-method. 
+
+Peaks that don't overlap another peak in every other replicate are not included unless --use-nonoverlapping-peaks is set. 
+
+* --peak-list *is* provided 
+
+Peaks are grouped by overlap, and then for each oracle peak a single peak from each replicate is chosen that overlaps the oracle peak. If there are multiple peaks that overlap the oracle, then ties are broken by applying the following criteria in order: 1) choose the replicate peak with a summit closest to the oracle peak's summit 2) choose the replicate peak that has the largest overlap with the oracle peak 3) choose the replicate peak with the highest score
+
+Output
+------
+
+### Output file format
 The output format mimics the input file type, with some additional fields. 
 
 We provide an example for narrow peak files - note that the first 6 columns
-are a standard bed6, the first 10 columns are a standard narrowPeak. Broad peak 
+are a standard bed6, the first 10 columns are a standard narrowPeak. Also, 
+for columns 7-10, only the score that the IDR code used for rankign 
+will be set - the remaining two columns will be set to -1.
+
+Broad peak 
 output files are the same *except* that they do not include the the summit 
-columns (10, 18, and 22 for samples with exactly 2 replicates)
+columns (e.g. columns 10, 18, and 22 for samples with 2 replicates)
 
 1.  chrom             string  
 Name of the chromosome for common peaks
@@ -71,9 +115,6 @@ an IDR of 0 have a score of 1000, idr 0.05 have a score of int(-125*log2(0.05))
 
 6.  strand         [+-.]   Use '.' if no strand is assigned.
 
-Note for columns 7-10: only the score that the IDR code used for rankign 
-will be set - the remaining two columns will be -1
-
 7.  signalValue       float   
 Measurement of enrichment for the region for merged peaks
 
@@ -91,10 +132,6 @@ Local IDR value
 
 12. globalIDR         float 
 Global IDR value
-
-#### 
-# The remaining lines contain replicate specific information. We only present
-# replicate 1 but a real file will always have at least 2 replicates
 
 13. rep1_chromStart   int     
 The starting position of the feature in the chromosome or scaffold for common 
@@ -122,7 +159,19 @@ The summit of this peak in replicate 1.
 [rep N data]
 
 
-### Contributors
+### Plot output
+
+Upper Left: 
+Replicate 1 peak ranks versus replicate 2 peak ranks - peaks that do not pass the specified idr threshold are colered red.
+
+Upper Right: 
+Replicate 1 log10 peak scores versus replicate 2 log10 peak scores - peaks that do not pass the specified idr threshold are colered red.
+
+Bottom Row: 
+Peaks rank versus idr scores are plotted in black. The overlayed boxplots display the distribution of idr values in each 5% quantile. The idr values are thresholded at the optimization precision - 1e-6 bny default.
+
+Contributors
+------------
 
 The main contributors of IDR code:
 
@@ -130,8 +179,7 @@ The main contributors of IDR code:
   * Anshul Kundaje      - Assistant Professor, Dept. of Genetics, Stanford University
   * Peter J. Bickel     - Professor, Dept. of Statistics, University of California at Berkeley
 
-### Issues
+Issues
+------
 
 If you notice any problem with the code, please file an issue over [here](https://github.com/nboley/idr/issues)
-
-### Differences 
