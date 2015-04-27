@@ -39,10 +39,9 @@ def load_bed(fp, signal_index, peak_summit_index=None):
         if peak_summit_index == None or int(data[peak_summit_index]) == -1:
             summit = None
         else:
-            summit = int(data[peak_summit_index])
+            summit = int(data[peak_summit_index]) + int(data[1])
         assert summit == None or summit >= 0
         
-        summit = None if  peak_summit_index != None else None
         peak = Peak(data[0], data[5], 
                     int(float(data[1])), int(float(data[2])), 
                     signal, summit )
@@ -119,7 +118,7 @@ def iter_matched_oracle_pks(
                   if sample_id == 0]
     # if there are zero oracle peaks in this 
     if len(oracle_pks) == 0: return None
- 
+
     # for each oracle peak, find score the replicate peaks
     for oracle_pk in oracle_pks:
         peaks_and_scores = OrderedDict([(i+1, []) for i in range(n_samples)])
@@ -145,7 +144,7 @@ def iter_matched_oracle_pks(
         if use_nonoverlapping_peaks:
             for sample_id, pks in peaks_and_scores.items():
                 if len(pks) == 0: 
-                    pks.append(((0, 0.0, 0.0), interval))
+                    pks.append(((0, 0.0, 0.0), pk))
         
         # skip regions that dont have a peak in all replicates. Note that if
         # we're using non-overlapping peaks, then we jsut added them and so
@@ -156,9 +155,9 @@ def iter_matched_oracle_pks(
         # build the aggregated signal value, which is jsut the signal value
         # of the replicate peak witgh the closest match
         signals = []
-        for pks in peaks_and_scores.values():
-            pks.sort()
-            signals.append(pks[0][1].signal)
+        for scored_pks in peaks_and_scores.values():
+            scored_pks.sort()
+            signals.append(scored_pks[0][1].signal)
         new_pk = (oracle_pk.start, oracle_pk.stop, oracle_pk.summit, 
                   pk_agg_fn(signals), 
                   signals, 
@@ -282,7 +281,8 @@ def build_idr_output_line_with_bed6(
         rv.extend(signal_values)
         # if this is a narrow peak, we also need to add the summit
         if output_file_type == 'narrowPeak':
-            rv.append(str(-1 if m_pk.summit == None else m_pk.summit))
+            rv.append(str(-1 if m_pk.summit == None 
+                          else m_pk.summit - m_pk.start))
     else:
         raise ValueError("Unrecognized output format '{}'".format(outputFormat))
 
@@ -612,7 +612,7 @@ def load_samples(args):
         f1, f2 = [load_bed(fp, signal_index, summit_index) 
                   for fp in args.samples]
         oracle_pks =  (
-            load_bed(args.peak_list, signal_index) 
+            load_bed(args.peak_list, signal_index, summit_index) 
             if args.peak_list != None else None)
     elif args.input_file_type in ['bed', ]:
         # set the default
