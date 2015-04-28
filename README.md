@@ -87,10 +87,10 @@ Merged peak q-value
 Merged peak summit
 
 11. localIDR          float 
-Local IDR value
+-log10(Local IDR value)
 
 12. globalIDR         float 
-Global IDR value
+-log10(Global IDR value)
 
 #### 
 # The remaining lines contain replicate specific information. We only present
