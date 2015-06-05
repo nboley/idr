@@ -29,9 +29,9 @@ def main():
 
         ext_modules = extensions,     
 
-        install_requires = [ 'scipy', 'numpy'  ],
+        install_requires = [ 'scipy>=0.13.0', 'numpy'  ],
 
-        extra_requires=['matplotlib'],
+        extras_require={'PLOT': 'matplotlib'},
 
         packages= ['idr',],
 
