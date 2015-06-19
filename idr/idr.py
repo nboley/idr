@@ -7,6 +7,7 @@ import math
 import numpy
 
 from scipy.stats.stats import rankdata
+from numpy.random import normal
 
 from collections import namedtuple, defaultdict, OrderedDict
 from itertools import chain
@@ -248,6 +249,10 @@ def merge_peaks(all_s_peaks, pk_agg_fn, oracle_pks=None,
     merged_peaks.sort(key=lambda x:x.merged_signal, reverse=True)
     return merged_peaks
 
+def rank_signal(signal):
+    rank = numpy.lexsort((numpy.random.random(len(signal)), signal)).argsort()
+    return numpy.array(rank, dtype=numpy.int)
+
 def build_rank_vectors(merged_peaks):
     # allocate memory for the ranks vector
     s1 = numpy.zeros(len(merged_peaks))
@@ -256,11 +261,7 @@ def build_rank_vectors(merged_peaks):
     for i, x in enumerate(merged_peaks):
         s1[i], s2[i] = x.signals
 
-    rank1 = numpy.lexsort((numpy.random.random(len(s1)), s1)).argsort()
-    rank2 = numpy.lexsort((numpy.random.random(len(s2)), s2)).argsort()
-    
-    return ( numpy.array(rank1, dtype=numpy.int), 
-             numpy.array(rank2, dtype=numpy.int) )
+    return ( rank_signal(s1), rank_signal(s2) )
 
 def build_idr_output_line_with_bed6(
         m_pk, IDR, localIDR, output_file_type, signal_type):
@@ -467,7 +468,7 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--peak-list', '-p', type=PossiblyGzippedFile,
         help='If provided, all peaks will be taken from this file.')
     parser.add_argument( '--input-file-type', default='narrowPeak',
-        choices=['narrowPeak', 'broadPeak', 'bed'], 
+        choices=['narrowPeak', 'broadPeak', 'bed', 'rsem'], 
         help='File type of --samples and --peak-list.')
     
     parser.add_argument( '--rank',
@@ -719,9 +720,67 @@ def plot(args, scores, ranks, IDRs):
     matplotlib.pyplot.savefig(args.output_file.name + ".png")
     return
 
-def main():
-    args = parse_args()
+def load_rsem_samples(fp):
+    signal = {}
+    for line in fp:
+        data = line.split()
+        gene_id = data[0]
+        mean_cnt = float(data[7])
+        mean_cnt_sd = float(data[8])
+        signal[gene_id] = (mean_cnt, mean_cnt_sd)
+    return signal
 
+def load_and_rank_rsem_samples(samples_fps):
+    merged_peaks = defaultdict(list)
+    for i, fp in enumerate(samples_fps):
+        for key, (val, sd) in load_rsem_samples(fp).items():
+            merged_peaks[key].append(val)
+    
+    genes = []
+    rvs = [ [] for i in range(len(samples_fps))]
+    for i, (key, vals) in enumerate(merged_peaks.items()):
+        # skip genes with less than 10 counts
+        if all(val < 10 for val in vals):
+            continue
+        genes.append(key)
+        for val, rv in zip(vals, rvs):
+            rv.append(val)
+
+    return genes, [numpy.array(rv) for rv in rvs]
+
+
+def process_rsem_data(args):
+    genes, (s1, s2) = load_and_rank_rsem_samples(args.samples)
+
+    r1 = rank_signal(s1)
+    r2 = rank_signal(s2)
+
+    #for g, (x, y) in zip(genes, zip(s1, s2)):
+    #    print( g, x, y )
+    #assert False
+    
+    localIDRs, IDRs = fit_model_and_calc_idr(
+        r1, r2, 
+        starting_point=(
+            args.initial_mu, args.initial_sigma, 
+            args.initial_rho, args.initial_mix_param),
+        max_iter=args.max_iter,
+        convergence_eps=args.convergence_eps,
+        fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
+
+    if args.plot:
+        plot(args, [s1, s2], [r1, r2], IDRs)
+
+    for gene, vals, IDR, localIDR in sorted(
+            zip(genes, zip(s1, s2), IDRs, localIDRs), key=lambda x:x[2]):
+        args.output_file.write("{}\t{}\t{}\t{}\n".format(
+            gene, "\t".join(("%.2f" % x).ljust(10) for x in vals),
+            "%.2f" % -math.log10(max(1e-5, localIDR)),
+            "%.2f" % -math.log10(max(1e-5, IDR))))
+
+    return
+
+def process_peak_data(args):
     # load and merge peaks
     merged_peaks, signal_type = load_samples(args)
     s1 = numpy.array([pk.signals[0] for pk in merged_peaks])
@@ -767,6 +826,15 @@ def main():
         useBackwardsCompatibleOutput=args.use_old_output_format)
     
     args.output_file.close()
+    return
+
+def main():
+    args = parse_args()
+    if args.input_file_type == 'rsem':
+        process_rsem_data(args)
+    else:
+        process_peak_data(args)
+    
 
 if __name__ == '__main__':
     try:
