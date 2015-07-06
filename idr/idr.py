@@ -300,8 +300,6 @@ def build_idr_output_line_with_bed6(
 
 def build_rsem_idr_output_line(
         gene_and_cnts, IDR, localIDR, output_file_type, signal_type):
-    print( output_file_type )
-    print( signal_type )
     gene, vals = gene_and_cnts
     return "{}\t{}\t{}\t{}\n".format(
         gene, "\t".join(("%.2f" % x).ljust(10) for x in vals),
@@ -410,10 +408,9 @@ def write_results_to_file(merged_peaks, output_file,
                           soft_max_allowed_idr=1.0,
                           localIDRs=None, IDRs=None, 
                           useBackwardsCompatibleOutput=False):
-    print output_file_type
-    print signal_type
-    assert False
-    if useBackwardsCompatibleOutput:
+    if signal_type == 'rsem':
+        build_idr_output_line = build_rsem_idr_output_line
+    elif useBackwardsCompatibleOutput:
         build_idr_output_line = build_backwards_compatible_idr_output_line
     else:
         build_idr_output_line = build_idr_output_line_with_bed6
@@ -763,7 +760,6 @@ def load_and_rank_rsem_samples(samples_fps):
 
     return genes, [numpy.array(rv) for rv in rvs]
 
-
 def process_rsem_data(args):
     genes, (s1, s2) = load_and_rank_rsem_samples(args.samples)
 
@@ -783,13 +779,20 @@ def process_rsem_data(args):
 
 def process_peak_data(args):
     # load and merge peaks
-    merged_peaks, signal_type = load_samples(args)
-    s1 = numpy.array([pk.signals[0] for pk in merged_peaks])
-    s2 = numpy.array([pk.signals[1] for pk in merged_peaks])
+    if args.input_file_type == 'rsem':
+        genes, (s1, s2) = load_and_rank_rsem_samples(args.samples)
+        r1 = rank_signal(s1)
+        r2 = rank_signal(s2)
+        signal_type = 'rsem'
+        merged_peaks = list(zip(genes, zip(s1, s2)))
+    else:
+        merged_peaks, signal_type = load_samples(args)
+        s1 = numpy.array([pk.signals[0] for pk in merged_peaks])
+        s2 = numpy.array([pk.signals[1] for pk in merged_peaks])
+        # build the ranks vector
+        idr.log("Ranking peaks", 'VERBOSE')
+        r1, r2 = build_rank_vectors(merged_peaks)
 
-    # build the ranks vector
-    idr.log("Ranking peaks", 'VERBOSE')
-    r1, r2 = build_rank_vectors(merged_peaks)
     
     if args.only_merge_peaks:
         localIDRs, IDRs = None, None
@@ -831,10 +834,10 @@ def process_peak_data(args):
 
 def main():
     args = parse_args()
-    if args.input_file_type == 'rsem':
-        process_rsem_data(args)
-    else:
-        process_peak_data(args)
+    #if args.input_file_type == 'rsem':
+    #    process_rsem_data(args)
+    #else:
+    process_peak_data(args)
     
 
 if __name__ == '__main__':
