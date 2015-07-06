@@ -581,6 +581,12 @@ Contact: Nathan Boley <npboley@gmail.com>
         assert args.soft_idr_threshold != None
         args.idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
 
+    if args.input_file_type == 'rsem':
+        idr.log(
+            "Setting fixing signma to {sigma:.2f} (the default for gene expression data)".format(
+                sigma=args.initial_sigma))
+        args.fix_sigma =True
+    
     numpy.random.seed(args.random_seed)
 
     if args.plot:
