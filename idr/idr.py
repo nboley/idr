@@ -298,6 +298,17 @@ def build_idr_output_line_with_bed6(
             
     return "\t".join(rv)
 
+def build_rsem_idr_output_line(
+        gene_and_cnts, IDR, localIDR, output_file_type, signal_type):
+    print( output_file_type )
+    print( signal_type )
+    gene, vals = gene_and_cnts
+    return "{}\t{}\t{}\t{}\n".format(
+        gene, "\t".join(("%.2f" % x).ljust(10) for x in vals),
+        "%.2f" % -math.log10(max(1e-5, localIDR)),
+        "%.2f" % -math.log10(max(1e-5, IDR)))
+    
+
 def build_backwards_compatible_idr_output_line(
         m_pk, IDR, localIDR, output_file_type, signal_type):
     rv = [m_pk.chrm,]
@@ -399,6 +410,9 @@ def write_results_to_file(merged_peaks, output_file,
                           soft_max_allowed_idr=1.0,
                           localIDRs=None, IDRs=None, 
                           useBackwardsCompatibleOutput=False):
+    print output_file_type
+    print signal_type
+    assert False
     if useBackwardsCompatibleOutput:
         build_idr_output_line = build_backwards_compatible_idr_output_line
     else:
@@ -722,7 +736,8 @@ def plot(args, scores, ranks, IDRs):
 
 def load_rsem_samples(fp):
     signal = {}
-    for line in fp:
+    for i, line in enumerate(fp):
+        if i == 0 and line.startswith('gene_id'): continue
         data = line.split()
         gene_id = data[0]
         mean_cnt = float(data[7])
@@ -754,10 +769,6 @@ def process_rsem_data(args):
 
     r1 = rank_signal(s1)
     r2 = rank_signal(s2)
-
-    #for g, (x, y) in zip(genes, zip(s1, s2)):
-    #    print( g, x, y )
-    #assert False
     
     localIDRs, IDRs = fit_model_and_calc_idr(
         r1, r2, 
@@ -768,17 +779,7 @@ def process_rsem_data(args):
         convergence_eps=args.convergence_eps,
         fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
 
-    if args.plot:
-        plot(args, [s1, s2], [r1, r2], IDRs)
-
-    for gene, vals, IDR, localIDR in sorted(
-            zip(genes, zip(s1, s2), IDRs, localIDRs), key=lambda x:x[2]):
-        args.output_file.write("{}\t{}\t{}\t{}\n".format(
-            gene, "\t".join(("%.2f" % x).ljust(10) for x in vals),
-            "%.2f" % -math.log10(max(1e-5, localIDR)),
-            "%.2f" % -math.log10(max(1e-5, IDR))))
-
-    return
+    return (genes, (s1, s2)), (s1, s2), (r1, r2)
 
 def process_peak_data(args):
     # load and merge peaks
@@ -810,9 +811,9 @@ def process_peak_data(args):
             convergence_eps=args.convergence_eps,
             fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
         
-        if args.plot:
-            assert len(args.samples) == 2
-            plot(args, [s1, s2], [r1, r2], IDRs)
+    if args.plot:
+        assert len(args.samples) == 2
+        plot(args, [s1, s2], [r1, r2], IDRs)
     
     num_peaks_passing_thresh = write_results_to_file(
         merged_peaks, 
