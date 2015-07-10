@@ -287,8 +287,8 @@ def build_idr_output_line_with_bed6(
     else:
         raise ValueError("Unrecognized output format '{}'".format(outputFormat))
 
-    rv.append("%.2f" % -math.log10(max(1e-5, localIDR)))    
-    rv.append("%.2f" % -math.log10(max(1e-5, IDR)))
+    rv.append("%.2f" % max(0.0, -math.log10(localIDR)))
+    rv.append("%.2f" % max(0.0, -math.log10(IDR)))
     
     for key, signal in enumerate(m_pk.signals):
         # we add one tot he key because key=0 corresponds to the oracle peaks
@@ -301,10 +301,10 @@ def build_idr_output_line_with_bed6(
 def build_rsem_idr_output_line(
         gene_and_cnts, IDR, localIDR, output_file_type, signal_type):
     gene, vals = gene_and_cnts
-    return "{}\t{}\t{}\t{}\n".format(
+    return "{}\t{}\t{}\t{}".format(
         gene, "\t".join(("%.2f" % x).ljust(10) for x in vals),
-        "%.2f" % -math.log10(max(1e-5, localIDR)),
-        "%.2f" % -math.log10(max(1e-5, IDR)))
+        "%.2f" % max(0.0, -math.log10(localIDR)),
+        "%.2f" % max(0.0, -math.log10(IDR)))
     
 
 def build_backwards_compatible_idr_output_line(
@@ -583,7 +583,7 @@ Contact: Nathan Boley <npboley@gmail.com>
 
     if args.input_file_type == 'rsem':
         idr.log(
-            "Setting fixing signma to {sigma:.2f} (the default for gene expression data)".format(
+            "Setting fixing sigma to {sigma:.2f} (the default for gene expression data)".format(
                 sigma=args.initial_sigma))
         args.fix_sigma =True
     
