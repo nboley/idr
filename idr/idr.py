@@ -155,14 +155,15 @@ def iter_matched_oracle_pks(
         # build the aggregated signal value, which is jsut the signal value
         # of the replicate peak witgh the closest match
         signals = []
-        for scored_pks in peaks_and_scores.values():
+        rep_pks = []
+        for rep_id, scored_pks in peaks_and_scores.items():
             scored_pks.sort()
             signals.append(scored_pks[0][1].signal)
+            rep_pks.append( [scored_pks[0][1],] )
         new_pk = (oracle_pk.start, oracle_pk.stop, oracle_pk.summit, 
                   pk_agg_fn(signals), 
                   signals, 
-                  [oracle_pk,] + [[y[1] for y in x] 
-                                  for x in peaks_and_scores.values()])
+                  [oracle_pk,] + rep_pks)
         yield new_pk
     
     return
@@ -288,12 +289,17 @@ def build_idr_output_line_with_bed6(
 
     rv.append("%.2f" % -math.log10(max(1e-5, localIDR)))    
     rv.append("%.2f" % -math.log10(max(1e-5, IDR)))
-    
+
     for key, signal in enumerate(m_pk.signals):
-        # we add one tot he key because key=0 corresponds to the oracle peaks
+        # we add one to the key because key=0 corresponds to the oracle peaks
         rv.append( "%i" % min(x.start for x in m_pk.pks[key+1]))
         rv.append( "%i" % max(x.stop for x in m_pk.pks[key+1]))
         rv.append( "%.5f" % signal )
+        if output_file_type == 'narrowPeak':
+            rv.append( "%i" % int(
+                mean(x.summit-x.start for x in m_pk.pks[key+1])
+            ))
+                                       
             
     return "\t".join(rv)
 
