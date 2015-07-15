@@ -80,9 +80,8 @@ Peaks are grouped by overlap, and then for each oracle peak a single peak from e
 
 Output
 ------
-RSEM input data has a different output than the other input types - see below. 
 
-### Peak Output file format
+### Output file format
 The output format mimics the input file type, with some additional fields. 
 
 We provide an example for narrow peak files - note that the first 6 columns
@@ -158,24 +157,6 @@ The summit of this peak in replicate 1.
 ...
 
 [rep N data]
-
-### RSEM Output file format
-
-1.  gene_id           string  
-RSEM gene id - the first column of the input file.
-
-2.  rep 1 score       float     
-The RSEM estimated posterior count mean for replicate 1 - column 7 of the RSEM output file.
-
-3.  rep 2 score       float     
-The RSEM estimated posterior count mean for replicate 2 - column 7 of the RSEM output file.
-
-4. localIDR          float 
--log10(Local IDR value)
-
-5. globalIDR         float 
--log10(Global IDR value)
-
 
 
 ### Plot output
