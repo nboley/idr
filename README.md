@@ -149,7 +149,7 @@ option. e.g. if --rank is set to signal.value, this corresponds to the 7th
 column of the narrowPeak, whereas if it is set to p.value it corresponds to
 the 8th column. 
 
-18. rep1_summit       int     
+16. rep1_summit       int     
 The summit of this peak in replicate 1. 
 
 [rep 2 data]
