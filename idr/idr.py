@@ -7,7 +7,6 @@ import math
 import numpy
 
 from scipy.stats.stats import rankdata
-from numpy.random import normal
 
 from collections import namedtuple, defaultdict, OrderedDict
 from itertools import chain
@@ -156,14 +155,15 @@ def iter_matched_oracle_pks(
         # build the aggregated signal value, which is jsut the signal value
         # of the replicate peak witgh the closest match
         signals = []
-        for scored_pks in peaks_and_scores.values():
+        rep_pks = []
+        for rep_id, scored_pks in peaks_and_scores.items():
             scored_pks.sort()
             signals.append(scored_pks[0][1].signal)
+            rep_pks.append( [scored_pks[0][1],] )
         new_pk = (oracle_pk.start, oracle_pk.stop, oracle_pk.summit, 
                   pk_agg_fn(signals), 
                   signals, 
-                  [oracle_pk,] + [[y[1] for y in x] 
-                                  for x in peaks_and_scores.values()])
+                  [oracle_pk,] + rep_pks)
         yield new_pk
     
     return
@@ -249,10 +249,6 @@ def merge_peaks(all_s_peaks, pk_agg_fn, oracle_pks=None,
     merged_peaks.sort(key=lambda x:x.merged_signal, reverse=True)
     return merged_peaks
 
-def rank_signal(signal):
-    rank = numpy.lexsort((numpy.random.random(len(signal)), signal)).argsort()
-    return numpy.array(rank, dtype=numpy.int)
-
 def build_rank_vectors(merged_peaks):
     # allocate memory for the ranks vector
     s1 = numpy.zeros(len(merged_peaks))
@@ -261,7 +257,11 @@ def build_rank_vectors(merged_peaks):
     for i, x in enumerate(merged_peaks):
         s1[i], s2[i] = x.signals
 
-    return ( rank_signal(s1), rank_signal(s2) )
+    rank1 = numpy.lexsort((numpy.random.random(len(s1)), s1)).argsort()
+    rank2 = numpy.lexsort((numpy.random.random(len(s2)), s2)).argsort()
+    
+    return ( numpy.array(rank1, dtype=numpy.int), 
+             numpy.array(rank2, dtype=numpy.int) )
 
 def build_idr_output_line_with_bed6(
         m_pk, IDR, localIDR, output_file_type, signal_type):
@@ -291,10 +291,15 @@ def build_idr_output_line_with_bed6(
     rv.append("%.2f" % max(0.0, -math.log10(IDR)))
     
     for key, signal in enumerate(m_pk.signals):
-        # we add one tot he key because key=0 corresponds to the oracle peaks
+        # we add one to the key because key=0 corresponds to the oracle peaks
         rv.append( "%i" % min(x.start for x in m_pk.pks[key+1]))
         rv.append( "%i" % max(x.stop for x in m_pk.pks[key+1]))
         rv.append( "%.5f" % signal )
+        if output_file_type == 'narrowPeak':
+            rv.append( "%i" % int(
+                mean(x.summit-x.start for x in m_pk.pks[key+1])
+            ))
+                                       
             
     return "\t".join(rv)
 
@@ -479,7 +484,7 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--peak-list', '-p', type=PossiblyGzippedFile,
         help='If provided, all peaks will be taken from this file.')
     parser.add_argument( '--input-file-type', default='narrowPeak',
-        choices=['narrowPeak', 'broadPeak', 'bed', 'rsem'], 
+        choices=['narrowPeak', 'broadPeak', 'bed'], 
         help='File type of --samples and --peak-list.')
     
     parser.add_argument( '--rank',
@@ -766,24 +771,9 @@ def load_and_rank_rsem_samples(samples_fps):
 
     return genes, [numpy.array(rv) for rv in rvs]
 
-def process_rsem_data(args):
-    genes, (s1, s2) = load_and_rank_rsem_samples(args.samples)
-
-    r1 = rank_signal(s1)
-    r2 = rank_signal(s2)
+def main():
+    args = parse_args()
     
-    localIDRs, IDRs = fit_model_and_calc_idr(
-        r1, r2, 
-        starting_point=(
-            args.initial_mu, args.initial_sigma, 
-            args.initial_rho, args.initial_mix_param),
-        max_iter=args.max_iter,
-        convergence_eps=args.convergence_eps,
-        fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
-
-    return (genes, (s1, s2)), (s1, s2), (r1, r2)
-
-def process_peak_data(args):
     # load and merge peaks
     if args.input_file_type == 'rsem':
         genes, (s1, s2) = load_and_rank_rsem_samples(args.samples)
@@ -837,14 +827,6 @@ def process_peak_data(args):
     
     args.output_file.close()
     return
-
-def main():
-    args = parse_args()
-    #if args.input_file_type == 'rsem':
-    #    process_rsem_data(args)
-    #else:
-    process_peak_data(args)
-    
 
 if __name__ == '__main__':
     try:
