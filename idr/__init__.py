@@ -44,6 +44,8 @@ DEFAULT_IDR_THRESH = 1.00
 
 FILTER_PEAKS_BELOW_NOISE_MEAN = True
 
+MIN_RSEM_CNT = 5
+
 ## optimization.py config options
 
 MIN_MIX_PARAM = 0.01

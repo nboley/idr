@@ -484,7 +484,7 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--peak-list', '-p', type=PossiblyGzippedFile,
         help='If provided, all peaks will be taken from this file.')
     parser.add_argument( '--input-file-type', default='narrowPeak',
-        choices=['narrowPeak', 'broadPeak', 'bed'], 
+        choices=['narrowPeak', 'broadPeak', 'bed', 'rsem'], 
         help='File type of --samples and --peak-list.')
     
     parser.add_argument( '--rank',
@@ -591,7 +591,8 @@ Contact: Nathan Boley <npboley@gmail.com>
             "Setting fixing sigma to {sigma:.2f} (the default for gene expression data)".format(
                 sigma=args.initial_sigma))
         args.fix_sigma =True
-    
+        idr.FILTER_PEAKS_BELOW_NOISE_MEAN = False
+        
     numpy.random.seed(args.random_seed)
 
     if args.plot:
@@ -763,7 +764,7 @@ def load_and_rank_rsem_samples(samples_fps):
     rvs = [ [] for i in range(len(samples_fps))]
     for i, (key, vals) in enumerate(merged_peaks.items()):
         # skip genes with less than 10 counts
-        if all(val < 10 for val in vals):
+        if all(val < idr.MIN_RSEM_CNT for val in vals):
             continue
         genes.append(key)
         for val, rv in zip(vals, rvs):
@@ -777,17 +778,16 @@ def main():
     # load and merge peaks
     if args.input_file_type == 'rsem':
         genes, (s1, s2) = load_and_rank_rsem_samples(args.samples)
-        r1 = rank_signal(s1)
-        r2 = rank_signal(s2)
         signal_type = 'rsem'
         merged_peaks = list(zip(genes, zip(s1, s2)))
     else:
         merged_peaks, signal_type = load_samples(args)
         s1 = numpy.array([pk.signals[0] for pk in merged_peaks])
         s2 = numpy.array([pk.signals[1] for pk in merged_peaks])
-        # build the ranks vector
-        idr.log("Ranking peaks", 'VERBOSE')
-        r1, r2 = build_rank_vectors(merged_peaks)
+
+    # build the ranks vector
+    idr.log("Ranking peaks", 'VERBOSE')
+    r1, r2 = build_rank_vectors(merged_peaks)
 
     
     if args.only_merge_peaks:
