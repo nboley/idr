@@ -1,6 +1,6 @@
 import sys
 
-__version__ = "2.0.1"
+__version__ = "2.0.2RSEMbeta1"
 
 DEBUG_LEVELS = {'ERROR', 'WARNING', None, 'VERBOSE', 'DEBUG'}
 ERROR_LEVELS = {'ERROR', 'WARNING'}
@@ -44,7 +44,7 @@ DEFAULT_IDR_THRESH = 1.00
 
 FILTER_PEAKS_BELOW_NOISE_MEAN = True
 
-MIN_RSEM_CNT = 5
+MIN_RSEM_CNT = 1
 
 ## optimization.py config options
 

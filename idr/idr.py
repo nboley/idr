@@ -249,6 +249,10 @@ def merge_peaks(all_s_peaks, pk_agg_fn, oracle_pks=None,
     merged_peaks.sort(key=lambda x:x.merged_signal, reverse=True)
     return merged_peaks
 
+def rank_signal(s):
+    rv = numpy.lexsort((numpy.random.random(len(s)), s)).argsort()
+    return numpy.array(rv, dtype=numpy.int)
+
 def build_rank_vectors(merged_peaks):
     # allocate memory for the ranks vector
     s1 = numpy.zeros(len(merged_peaks))
@@ -257,11 +261,7 @@ def build_rank_vectors(merged_peaks):
     for i, x in enumerate(merged_peaks):
         s1[i], s2[i] = x.signals
 
-    rank1 = numpy.lexsort((numpy.random.random(len(s1)), s1)).argsort()
-    rank2 = numpy.lexsort((numpy.random.random(len(s2)), s2)).argsort()
-    
-    return ( numpy.array(rank1, dtype=numpy.int), 
-             numpy.array(rank2, dtype=numpy.int) )
+    return rank_signal(s1), rank_signal(s2)
 
 def build_idr_output_line_with_bed6(
         m_pk, IDR, localIDR, output_file_type, signal_type):
@@ -780,14 +780,15 @@ def main():
         genes, (s1, s2) = load_and_rank_rsem_samples(args.samples)
         signal_type = 'rsem'
         merged_peaks = list(zip(genes, zip(s1, s2)))
+        r1 = rank_signal(s1)
+        r2 = rank_signal(s2)
     else:
         merged_peaks, signal_type = load_samples(args)
         s1 = numpy.array([pk.signals[0] for pk in merged_peaks])
         s2 = numpy.array([pk.signals[1] for pk in merged_peaks])
-
-    # build the ranks vector
-    idr.log("Ranking peaks", 'VERBOSE')
-    r1, r2 = build_rank_vectors(merged_peaks)
+        # build the ranks vector
+        idr.log("Ranking peaks", 'VERBOSE')
+        r1, r2 = build_rank_vectors(merged_peaks)
 
     
     if args.only_merge_peaks:
