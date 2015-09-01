@@ -495,7 +495,7 @@ Contact: Nathan Boley <npboley@gmail.com>
             +"\nDefault: report all peaks")
     parser.add_argument( '--soft-idr-threshold', type=float, default=None, 
         help="Report statistics for peaks with a global idr below this "\
-        +"value but return all peaks.\nDefault: --idr if set else %.2f" \
+        +"value but return all peaks with an idr below --idr.\nDefault: %.2f" \
                          % idr.DEFAULT_SOFT_IDR_THRESH)
 
     parser.add_argument( '--use-old-output-format', 
@@ -565,6 +565,7 @@ Contact: Nathan Boley <npboley@gmail.com>
         idr.QUIET = True 
         idr.VERBOSE = False
 
+    assert idr.DEFAULT_IDR_THRESH == 1.0
     if args.idr_threshold == None and args.soft_idr_threshold == None:
         args.idr_threshold = idr.DEFAULT_IDR_THRESH
         args.soft_idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
@@ -573,7 +574,7 @@ Contact: Nathan Boley <npboley@gmail.com>
         args.soft_idr_threshold = args.idr_threshold
     elif args.idr_threshold == None:
         assert args.soft_idr_threshold != None
-        args.idr_threshold = idr.DEFAULT_SOFT_IDR_THRESH
+        args.idr_threshold = idr.DEFAULT_IDR_THRESH
 
     numpy.random.seed(args.random_seed)
 
