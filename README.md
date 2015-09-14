@@ -11,7 +11,7 @@ Installation
 
 * Get the current repo
 ```
-wget https://github.com/nboley/idr/archive/2.0.0.zip
+wget https://github.com/nboley/idr/archive/2.0.2.zip
 ```
 
 * Install the dependencies
@@ -33,9 +33,9 @@ bash Anaconda3-2.2.0-Linux-x86_64.sh
 
 * Download and unzip the idr code
 ```
-wget https://github.com/nboley/idr/archive/2.0.0.zip
-unzip 2.0.0.zip
-cd 2.0.0/
+wget https://github.com/nboley/idr/archive/2.0.2.zip
+unzip 2.0.2.zip
+cd 2.0.2/
 ```
 
 * Then install idr 
