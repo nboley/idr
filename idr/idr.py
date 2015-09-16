@@ -412,9 +412,9 @@ def write_results_to_file(merged_peaks, output_file,
     # write out the result
     idr.log("Writing results to file", "VERBOSE");
     
-    if localIDRs == None or IDRs == None:
-        assert IDRs == None
-        assert localIDRs == None
+    if localIDRs is None or IDRs is None:
+        assert IDRs is None
+        assert localIDRs is None
         localIDRs = numpy.ones(len(merged_peaks))
         IDRs = numpy.ones(len(merged_peaks))
 
