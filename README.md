@@ -179,6 +179,10 @@ The main contributors of IDR code:
   * Anshul Kundaje      - Assistant Professor, Dept. of Genetics, Stanford University
   * Peter J. Bickel     - Professor, Dept. of Statistics, University of California at Berkeley
 
+References
+----------
+"Measuring reproducibility of high-throughput experiments" (2011), Annals of Applied Statistics, Vol. 5, No. 3, 1752-1779, by Li, Brown, Huang, and Bickel
+
 Issues
 ------
 
