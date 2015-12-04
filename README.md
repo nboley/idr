@@ -170,6 +170,61 @@ Replicate 1 log10 peak scores versus replicate 2 log10 peak scores - peaks that 
 Bottom Row: 
 Peaks rank versus idr scores are plotted in black. The overlayed boxplots display the distribution of idr values in each 5% quantile. The idr values are thresholded at the optimization precision - 1e-6 bny default.
 
+Command Line Arguments
+----------------------
+`````
+  -h, --help            show this help message and exit
+  --samples SAMPLES SAMPLES, -s SAMPLES SAMPLES
+                        Files containing peaks and scores.
+  --peak-list PEAK_LIST, -p PEAK_LIST
+                        If provided, all peaks will be taken from this file.
+  --input-file-type {narrowPeak,broadPeak,bed}
+                        File type of --samples and --peak-list.
+  --rank RANK           Which column to use to rank peaks.      
+                        Options: signal.value p.value q.value columnIndex
+                        Defaults:
+                                narrowPeak/broadPeak: signal.value
+                                bed: score
+  --output-file OUTPUT_FILE, -o OUTPUT_FILE
+                        File to write output to.
+                        Default: idrValues.txt
+  --log-output-file LOG_OUTPUT_FILE, -l LOG_OUTPUT_FILE
+                        File to write output to. Default: stderr
+  --idr-threshold IDR_THRESHOLD, -i IDR_THRESHOLD
+                        Only return peaks with a global idr threshold below this value.
+                        Default: report all peaks
+  --soft-idr-threshold SOFT_IDR_THRESHOLD
+                        Report statistics for peaks with a global idr below this value but return all peaks.
+                        Default: --idr if set else 0.05
+  --use-old-output-format
+                        Use old output format.
+  --plot                Plot the results to [OFNAME].png
+  --use-nonoverlapping-peaks
+                        Use peaks without an overlapping match and set the value to 0.
+  --peak-merge-method {sum,avg,min,max}
+                        Which method to use for merging peaks.
+                                Default: 'sum' for signal/score/column indexes, 'min' for p/q-value.
+  --initial-mu INITIAL_MU
+                        Initial value of mu. Default: 0.10
+  --initial-sigma INITIAL_SIGMA
+                        Initial value of sigma. Default: 1.00
+  --initial-rho INITIAL_RHO
+                        Initial value of rho. Default: 0.20
+  --initial-mix-param INITIAL_MIX_PARAM
+                        Initial value of the mixture params. Default: 0.50
+  --fix-mu              Fix mu to the starting point and do not let it vary.
+  --fix-sigma           Fix sigma to the starting point and do not let it vary.
+  --random-seed RANDOM_SEED
+                        The random seed value (sor braking ties). Default: 0
+  --max-iter MAX_ITER   The maximum number of optimization iterations. Default: 3000
+  --convergence-eps CONVERGENCE_EPS
+                        The maximum change in parameter value changes for convergence. Default: 1.00e-06
+  --only-merge-peaks    Only return the merged peak list.
+  --verbose             Print out additional debug information
+  --quiet               Don't print any status messages
+  --version             show program's version number and exit
+`````
+
 Contributors
 ------------
 
