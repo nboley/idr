@@ -27,6 +27,22 @@ MergedPeak = namedtuple(
     'Peak', ['chrm', 'strand', 'start', 'stop', 'summit', 
              'merged_signal', 'signals', 'pks'])
 
+def load_gff(fp):
+    """
+    chr20   GRIT    TSS     36322438        36322468        44      +       .       gene_id 'chr20_plus_36322407_36500530'; gene_name 'chr20_plus_36322407_36500530'; tss_id 'TSS_chr20_plus_36322407_36500530_pk1'; peak_cov '7,0,11,0,0,0,0,0,3,0,1,0,0,0,6,0,0,0,0,0,3,0,4,0,0,0,8,0,0,1';
+    """
+    grpd_peaks = defaultdict(list)
+    for line in fp:
+        if line.startswith("#"): continue
+        if line.startswith("track"): continue
+        data = line.split()
+        signal = float(data[5])
+        peak = Peak(data[0], data[6], 
+                    int(float(data[3])), int(float(data[4])), 
+                    signal, None )
+        grpd_peaks[(peak.chrm, peak.strand)].append(peak)
+    return grpd_peaks
+
 def load_bed(fp, signal_index, peak_summit_index=None):
     grpd_peaks = defaultdict(list)
     for line in fp:
@@ -473,7 +489,7 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--peak-list', '-p', type=PossiblyGzippedFile,
         help='If provided, all peaks will be taken from this file.')
     parser.add_argument( '--input-file-type', default='narrowPeak',
-        choices=['narrowPeak', 'broadPeak', 'bed'], 
+                         choices=['narrowPeak', 'broadPeak', 'bed', 'gff'], 
         help='File type of --samples and --peak-list.')
     
     parser.add_argument( '--rank',
@@ -485,6 +501,10 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--output-file', "-o", 
                          default=default_ofname, 
         help='File to write output to.\nDefault: {}'.format(default_ofname))
+    parser.add_argument( '--output-file-type', 
+                         choices=['narrowPeak', 'broadPeak', 'bed'], 
+                         default=None, 
+        help='Output file type. Defaults to input file type when available, otherwise bed.')
 
     parser.add_argument( '--log-output-file', "-l", type=argparse.FileType("w"),
                          default=sys.stderr,
@@ -556,6 +576,12 @@ Contact: Nathan Boley <npboley@gmail.com>
 
     args.output_file = open(args.output_file, "w")
     idr.log_ofp = args.log_output_file
+
+    if args.output_file_type is None:
+        if args.input_file_type in ('narrowPeak', 'broadPeak', 'bed'):
+            args.output_file_type = args.input_file_type
+        else:
+            args.output_file_type = 'bed'
     
     if args.verbose: 
         idr.VERBOSE = True 
@@ -648,6 +674,24 @@ def load_samples(args):
         f1, f2 = [load_bed(fp, signal_index) for fp in args.samples]
         oracle_pks =  (
             load_bed(args.peak_list, signal_index) 
+            if args.peak_list != None else None)
+    elif args.input_file_type in ['gff', ]:
+        # set the default
+        if args.rank == None: 
+            signal_type = 'score'
+        else:
+            assert args.rank == 'score'
+        
+        if args.peak_merge_method == None:
+            peak_merge_fn = sum
+        else:
+            peak_merge_fn = {
+                "sum": sum, "avg": mean, "min": min, "max": max}[
+                    args.peak_merge_method]
+        
+        f1, f2 = [load_gff(fp) for fp in args.samples]
+        oracle_pks =  (
+            load_gff(args.peak_list) 
             if args.peak_list != None else None)
     else:
         raise ValueError( "Unrecognized file type: '{}'".format(
@@ -746,7 +790,7 @@ def main():
             error_msg += "\nHint: Merged peaks were written to the output file"
             write_results_to_file(
                 merged_peaks, args.output_file,
-                args.input_file_type, signal_type)
+                args.output_file_type, signal_type)
             raise ValueError(error_msg)
 
         localIDRs, IDRs = fit_model_and_calc_idr(
@@ -765,7 +809,7 @@ def main():
     num_peaks_passing_thresh = write_results_to_file(
         merged_peaks, 
         args.output_file, 
-        args.input_file_type, 
+        args.output_file_type, 
         signal_type,
         localIDRs=localIDRs, 
         IDRs=IDRs,
