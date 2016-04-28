@@ -50,14 +50,13 @@ def load_bed(fp, signal_index, peak_summit_index=None):
         if line.startswith("track"): continue
         data = line.split()
         signal = float(data[signal_index])
-        if signal < 0: 
+        if idr.ONLY_ALLOW_NON_NEGATIVE_VALUES and signal < 0:
             raise ValueError("Invalid Signal Value: {:e}".format(signal))
         if peak_summit_index == None or int(data[peak_summit_index]) == -1:
             summit = None
         else:
             summit = int(data[peak_summit_index]) + int(data[1])
         assert summit == None or summit >= 0
-        
         peak = Peak(data[0], data[5], 
                     int(float(data[1])), int(float(data[2])), 
                     signal, summit )
@@ -551,6 +550,16 @@ Contact: Nathan Boley <npboley@gmail.com>
     parser.add_argument( '--fix-sigma', action='store_true', 
         help="Fix sigma to the starting point and do not let it vary.")    
 
+    parser.add_argument( '--dont-filter-peaks-below-noise-mean', 
+                         default=False,
+                         action='store_true', 
+        help="Allow signal points that are below the noise mean (should only be used if you know what you are doing).")    
+
+    parser.add_argument( '--allow-negative-scores', 
+                         default=False,
+                         action='store_true', 
+        help="Allow negative values for scores. (should only be used if you know what you are doing)")    
+
     parser.add_argument( '--random-seed', type=int, default=0, 
         help="The random seed value (sor braking ties). Default: 0") 
     parser.add_argument( '--max-iter', type=int, default=idr.MAX_ITER_DEFAULT, 
@@ -591,6 +600,12 @@ Contact: Nathan Boley <npboley@gmail.com>
         idr.QUIET = True 
         idr.VERBOSE = False
 
+    if args.dont_filter_peaks_below_noise_mean is True:
+        idr.FILTER_PEAKS_BELOW_NOISE_MEAN = False
+
+    if args.allow_negative_scores is True:
+        idr.ONLY_ALLOW_NON_NEGATIVE_VALUES = False
+    
     assert idr.DEFAULT_IDR_THRESH == 1.0
     if args.idr_threshold == None and args.soft_idr_threshold == None:
         args.idr_threshold = idr.DEFAULT_IDR_THRESH
@@ -696,7 +711,6 @@ def load_samples(args):
     else:
         raise ValueError( "Unrecognized file type: '{}'".format(
             args.input_file_type))
-        
     # build a unified peak set
     idr.log("Merging peaks", 'VERBOSE')
     merged_peaks = merge_peaks([f1, f2], peak_merge_fn, 

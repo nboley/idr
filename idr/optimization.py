@@ -469,6 +469,12 @@ def estimate_model_params(
     
     return theta, loss
 
+# XXX change theta to a named tuple with actual paramaeter values
+# mu, sigma, correlation, mixture
+# DONE - set FIX mu and set INITIAL mu : Add option to fix mu to 0
+# Add option to disable less than 0 heuristic
+# Add a disable negative value option error
+# also fix the log plot
 def main():
     """
     r1_values, r2_values = [], []
