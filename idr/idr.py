@@ -22,7 +22,7 @@ from idr.optimization import estimate_model_params, old_estimator
 from idr.utility import calc_post_membership_prbs, compute_pseudo_values
 
 Peak = namedtuple(
-    'Peak', ['chrm', 'strand', 'start', 'stop', 'signal', 'summit'])
+    'Peak', ['chrm', 'strand', 'start', 'stop', 'signal', 'summit', 'signalValue', 'pValue', 'qValue'])
 MergedPeak = namedtuple(
     'Peak', ['chrm', 'strand', 'start', 'stop', 'summit', 
              'merged_signal', 'signals', 'pks'])
@@ -39,7 +39,8 @@ def load_gff(fp):
         signal = float(data[5])
         peak = Peak(data[0], data[6], 
                     int(float(data[3])), int(float(data[4])), 
-                    signal, None )
+                    signal, None, 
+                    None, None, None )
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
@@ -59,7 +60,9 @@ def load_bed(fp, signal_index, peak_summit_index=None):
         assert summit == None or summit >= 0
         peak = Peak(data[0], data[5], 
                     int(float(data[1])), int(float(data[2])), 
-                    signal, summit )
+                    signal, summit, 
+                    float(data[6]), float(data[7]), float(data[8]) 
+        )
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
@@ -171,10 +174,11 @@ def iter_matched_oracle_pks(
             else:
                 signals.append(scored_pks[0][1].signal)
                 rep_pks.append( [scored_pks[0][1],] )
+        all_peaks = [oracle_pk,] + rep_pks
         new_pk = (oracle_pk.start, oracle_pk.stop, oracle_pk.summit, 
                   pk_agg_fn(signals), 
                   signals, 
-                  [oracle_pk,] + rep_pks)
+                  OrderedDict(zip(range(len(all_peaks)), all_peaks)))
         yield new_pk
     
     return
@@ -275,7 +279,8 @@ def build_rank_vectors(merged_peaks):
              numpy.array(rank2, dtype=numpy.int) )
 
 def build_idr_output_line_with_bed6(
-        m_pk, IDR, localIDR, output_file_type, signal_type):
+        m_pk, IDR, localIDR, output_file_type, signal_type, 
+        use_oracle_peak_values=True):
     # initialize the line with the bed6 entires - these are 
     # present in all of the output types
     rv = [m_pk.chrm, str(m_pk.start), str(m_pk.stop), 
@@ -285,11 +290,18 @@ def build_idr_output_line_with_bed6(
         pass
     # for narrow/broad peak files, we need to add the 3 score fields
     elif output_file_type in ('narrowPeak', 'broadPeak'):
-        # set the signal values that we didn't use to -1 per the standard 
-        signal_values = ["-1", "-1", "-1"]
-        signal_values[
-            {"signal.value": 0, "p.value": 1, "q.value": 2}[signal_type]
-            ] = ("%.5f" % m_pk.merged_signal)
+        # if we want to use the oracle peak values for the scores, and an oracle
+        # peak is specified
+        if use_oracle_peak_values and 0 in m_pk.pks:
+            signal_values = [
+                m_pk.pks[0].signalValue, m_pk.pks[0].pValue, m_pk.pks[0].qValue]
+            signal_values = ["%.5f" % x for x in signal_values]
+        else:
+            # set the signal values that we didn't use to -1 per the standard 
+            signal_values = ["-1", "-1", "-1"]
+            signal_values[
+                {"signal.value": 0, "p.value": 1, "q.value": 2}[signal_type]
+                ] = ("%.5f" % m_pk.merged_signal)
         rv.extend(signal_values)
         # if this is a narrow peak, we also need to add the summit
         if output_file_type == 'narrowPeak':
