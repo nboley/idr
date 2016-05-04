@@ -133,7 +133,6 @@ def iter_matched_oracle_pks(
                   if sample_id == 0]
     # if there are zero oracle peaks in this 
     if len(oracle_pks) == 0: return None
-
     # for each oracle peak, find score the replicate peaks
     for oracle_pk in oracle_pks:
         peaks_and_scores = OrderedDict([(i+1, []) for i in range(n_samples)])
@@ -153,18 +152,10 @@ def iter_matched_oracle_pks(
             
             peaks_and_scores[sample_id].append(
                 ((summit_distance, -overlap_frac, -pk.signal), pk))
-        
-        # if we want to use nonoverlapping peaks, add zero score peaks
-        # for any replicate that doesn't have a matching peak
-        if use_nonoverlapping_peaks:
-            for sample_id, pks in peaks_and_scores.items():
-                if len(pks) == 0: 
-                    pks.append(((0, 0.0, 0.0), pk))
-        
-        # skip regions that dont have a peak in all replicates. Note that if
-        # we're using non-overlapping peaks, then we jsut added them and so
-        # this will never evaluate to true
-        if any(0 == len(peaks) for peaks in peaks_and_scores.values()):
+                
+        # skip regions that dont have a peak in all replicates. 
+        if not use_nonoverlapping_peaks and any(
+                0 == len(peaks) for peaks in peaks_and_scores.values()):
             continue
         
         # build the aggregated signal value, which is jsut the signal value
@@ -173,8 +164,13 @@ def iter_matched_oracle_pks(
         rep_pks = []
         for rep_id, scored_pks in peaks_and_scores.items():
             scored_pks.sort()
-            signals.append(scored_pks[0][1].signal)
-            rep_pks.append( [scored_pks[0][1],] )
+            if len(scored_pks) == 0:
+                assert use_nonoverlapping_peaks
+                signals.append(0)
+                rep_pks.append(None)
+            else:
+                signals.append(scored_pks[0][1].signal)
+                rep_pks.append( [scored_pks[0][1],] )
         new_pk = (oracle_pk.start, oracle_pk.stop, oracle_pk.summit, 
                   pk_agg_fn(signals), 
                   signals, 
@@ -307,13 +303,22 @@ def build_idr_output_line_with_bed6(
 
     for key, signal in enumerate(m_pk.signals):
         # we add one to the key because key=0 corresponds to the oracle peaks
-        rv.append( "%i" % min(x.start for x in m_pk.pks[key+1]))
-        rv.append( "%i" % max(x.stop for x in m_pk.pks[key+1]))
-        rv.append( "%.5f" % signal )
-        if output_file_type == 'narrowPeak':
-            rv.append( "%i" % int(
-                mean(x.summit-x.start for x in m_pk.pks[key+1])
-            ))
+        key += 1
+        # if there is no matching peak for this replicate
+        if m_pk.pks[key] is None:
+            rv.append("-1")
+            rv.append("-1")
+            rv.append( "%.5f" % signal )
+            if output_file_type == 'narrowPeak':
+                rv.append("-1")
+        else:
+            rv.append( "%i" % min(x.start for x in m_pk.pks[key]))
+            rv.append( "%i" % max(x.stop for x in m_pk.pks[key]))
+            rv.append( "%.5f" % signal )
+            if output_file_type == 'narrowPeak':
+                rv.append( "%i" % int(
+                    mean(x.summit-x.start for x in m_pk.pks[key])
+                ))
                                        
             
     return "\t".join(rv)
