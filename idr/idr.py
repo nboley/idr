@@ -588,9 +588,9 @@ Contact: Nathan Boley <npboley@gmail.com>
                          action='store_true', 
         help="Allow signal points that are below the noise mean (should only be used if you know what you are doing).")    
 
-    parser.add_argument( '--use-max-IDR-score-across-multi-summit-peaks',
+    parser.add_argument( '--use-best-multisummit-IDR',
                          default=False, action='store_true',
-        help="Set the IDR value for a group of multi summit peaks to maximum value across all peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks.")
+        help="Set the IDR value for a group of multi summit peaks (same chr/start/stop but different summit) to the best value across all peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks.")
 
     parser.add_argument( '--allow-negative-scores', 
                          default=False,
