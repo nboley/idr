@@ -70,9 +70,9 @@ def correct_multi_summit_peak_IDR_values(idr_values, merged_peaks):
     assert len(idr_values) == len(merged_peaks)
     new_values = idr_values.copy()
     # find the maximum IDR value for each peak
-    pk_idr_values = defaultdict(lambda: -float('inf')) 
+    pk_idr_values = defaultdict(lambda: float('inf')) 
     for i, pk in enumerate(merged_peaks):
-        pk_idr_values[(pk.chrm, pk.strand, pk.start, pk.stop)] = max(
+        pk_idr_values[(pk.chrm, pk.strand, pk.start, pk.stop)] = min(
             pk_idr_values[(pk.chrm, pk.strand, pk.start, pk.stop)], 
             idr_values[i]
         )
@@ -365,7 +365,7 @@ def build_backwards_compatible_idr_output_line(
         
     return "\t".join(rv)
 
-def calc_IDR(theta, r1, r2):
+def calc_local_IDR(theta, r1, r2):
     """
     idr <- 1 - e.z
     o <- order(idr)
@@ -388,6 +388,9 @@ def calc_IDR(theta, r1, r2):
     # it doesn't make sense for the IDR values to be smaller than the 
     # optimization tolerance
     localIDR = numpy.clip(localIDR, idr.CONVERGENCE_EPS_DEFAULT, 1)
+    return localIDR
+
+def calc_global_IDR(localIDR):
     local_idr_order = localIDR.argsort()
     ordered_local_idr = localIDR[local_idr_order]
     ordered_local_idr_ranks = rankdata( ordered_local_idr, method='max' )
@@ -395,14 +398,13 @@ def calc_IDR(theta, r1, r2):
     for i, rank in enumerate(ordered_local_idr_ranks):
         IDR.append(ordered_local_idr[:rank].mean())
     IDR = numpy.array(IDR)[local_idr_order.argsort()]
+    return IDR
 
-    return localIDR, IDR
-
-def fit_model_and_calc_idr(r1, r2, 
-                           starting_point=None,
-                           max_iter=idr.MAX_ITER_DEFAULT, 
-                           convergence_eps=idr.CONVERGENCE_EPS_DEFAULT, 
-                           fix_mu=False, fix_sigma=False ):
+def fit_model_and_calc_local_idr(r1, r2, 
+                                 starting_point=None,
+                                 max_iter=idr.MAX_ITER_DEFAULT, 
+                                 convergence_eps=idr.CONVERGENCE_EPS_DEFAULT, 
+                                 fix_mu=False, fix_sigma=False):
     # in theory we would try to find good starting point here,
     # but for now just set it to somethign reasonable
     if type(starting_point) == type(None):
@@ -441,9 +443,8 @@ def fit_model_and_calc_idr(r1, r2,
     idr.log("Final parameter values: [%s]"%" ".join("%.2f" % x for x in theta))
     
     # calculate the global IDR
-    localIDRs, IDRs = calc_IDR(numpy.array(theta), r1, r2)
-
-    return localIDRs, IDRs
+    localIDRs = calc_local_IDR(numpy.array(theta), r1, r2)
+    return localIDRs
 
 def write_results_to_file(merged_peaks, output_file, 
                           output_file_type, signal_type,
@@ -641,10 +642,7 @@ Contact: Nathan Boley <npboley@gmail.com>
 
     if args.allow_negative_scores is True:
         idr.ONLY_ALLOW_NON_NEGATIVE_VALUES = False
-    
-    if args.use_max_IDR_score_across_multi_summit_peaks is True:
-        idr.use_max_IDR_score_across_multi_summit_peaks = True
-    
+        
     assert idr.DEFAULT_IDR_THRESH == 1.0
     if args.idr_threshold == None and args.soft_idr_threshold == None:
         args.idr_threshold = idr.DEFAULT_IDR_THRESH
@@ -846,7 +844,7 @@ def main():
                 args.output_file_type, signal_type)
             raise ValueError(error_msg)
 
-        localIDRs, IDRs = fit_model_and_calc_idr(
+        localIDRs = fit_model_and_calc_local_idr(
             r1, r2, 
             starting_point=(
                 args.initial_mu, args.initial_sigma, 
@@ -858,8 +856,7 @@ def main():
         if args.use_max_IDR_score_across_multi_summit_peaks:
             localIDRs = correct_multi_summit_peak_IDR_values(
                 localIDRs, merged_peaks)
-            IDRs = correct_multi_summit_peak_IDR_values(
-                IDRs, merged_peaks)
+        IDRs = calc_global_IDR(localIDRs)
         
         if args.plot:
             assert len(args.samples) == 2
