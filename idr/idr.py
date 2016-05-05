@@ -66,6 +66,21 @@ def load_bed(fp, signal_index, peak_summit_index=None):
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
+def correct_multi_summit_peak_IDR_values(idr_values, merged_peaks):
+    assert len(idr_values) == len(merged_peaks)
+    new_values = idr_values.copy()
+    # find the maximum IDR value for each peak
+    pk_idr_values = defaultdict(lambda: -float('inf')) 
+    for i, pk in enumerate(merged_peaks):
+        pk_idr_values[(pk.chrm, pk.strand, pk.start, pk.stop)] = max(
+            pk_idr_values[(pk.chrm, pk.strand, pk.start, pk.stop)], 
+            idr_values[i]
+        )
+    # update the values
+    for i, pk in enumerate(merged_peaks):
+        new_values[i] = pk_idr_values[(pk.chrm, pk.strand, pk.start, pk.stop)]
+    return new_values
+
 def iter_merge_grpd_intervals(
         intervals, n_samples, pk_agg_fn,
         use_oracle_pks, use_nonoverlapping_peaks):
@@ -572,6 +587,10 @@ Contact: Nathan Boley <npboley@gmail.com>
                          action='store_true', 
         help="Allow signal points that are below the noise mean (should only be used if you know what you are doing).")    
 
+    parser.add_argument( '--use-max-IDR-score-across-multi-summit-peaks',
+                         default=False, action='store_true',
+        help="Set the IDR value for a group of multi summit peaks to maximum value across all peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks.")
+
     parser.add_argument( '--allow-negative-scores', 
                          default=False,
                          action='store_true', 
@@ -622,6 +641,9 @@ Contact: Nathan Boley <npboley@gmail.com>
 
     if args.allow_negative_scores is True:
         idr.ONLY_ALLOW_NON_NEGATIVE_VALUES = False
+    
+    if args.use_max_IDR_score_across_multi_summit_peaks is True:
+        idr.use_max_IDR_score_across_multi_summit_peaks = True
     
     assert idr.DEFAULT_IDR_THRESH == 1.0
     if args.idr_threshold == None and args.soft_idr_threshold == None:
@@ -832,10 +854,17 @@ def main():
             max_iter=args.max_iter,
             convergence_eps=args.convergence_eps,
             fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
+
+        if args.use_max_IDR_score_across_multi_summit_peaks:
+            localIDRs = correct_multi_summit_peak_IDR_values(
+                localIDRs, merged_peaks)
+            IDRs = correct_multi_summit_peak_IDR_values(
+                IDRs, merged_peaks)
         
         if args.plot:
             assert len(args.samples) == 2
             plot(args, [s1, s2], [r1, r2], IDRs)
+        
     
     num_peaks_passing_thresh = write_results_to_file(
         merged_peaks, 
