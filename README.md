@@ -218,8 +218,8 @@ Command Line Arguments
   --fix-sigma           Fix sigma to the starting point and do not let it vary.
   --dont-filter-peaks-below-noise-mean
                         Allow signal points that are below the noise mean (should only be used if you know what you are doing).
-  --use-max-IDR-score-across-multi-summit-peaks
-                        Set the IDR value for a group of multi summit peaks to maximum value across all peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks.
+  --use-best-multisummit-IDR
+                        Set the IDR value for a group of multi summit peaks (same chr/start/stop but different summit) to the best value across all peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks.
   --allow-negative-scores
                         Allow negative values for scores. (should only be used if you know what you are doing)
   --random-seed RANDOM_SEED
