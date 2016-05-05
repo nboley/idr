@@ -116,13 +116,13 @@ an IDR of 0 have a score of 1000, idr 0.05 have a score of int(-125*log2(0.05))
 6.  strand         [+-.]   Use '.' if no strand is assigned.
 
 7.  signalValue       float   
-Measurement of enrichment for the region for merged peaks
+Measurement of enrichment for the region for merged peaks. When a peak list is provided this is the value from the peak list.
 
 8.  p-value           float   
-Merged peak p-value
+Merged peak p-value. When a peak list is provided this is the value from the peak list.
 
 9.  q-value           float   
-Merged peak q-value
+Merged peak q-value. When a peak list is provided this is the value from the peak list.
 
 10. summit            int     
 Merged peak summit
