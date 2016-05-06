@@ -407,9 +407,9 @@ def fit_model_and_calc_local_idr(r1, r2,
                                  fix_mu=False, fix_sigma=False):
     # in theory we would try to find good starting point here,
     # but for now just set it to somethign reasonable
-    if type(starting_point) == type(None):
-        starting_point = (DEFAULT_MU, DEFAULT_SIGMA, 
-                          DEFAULT_RHO, DEFAULT_MIX_PARAM)
+    if starting_point is None:
+        starting_point = (idr.DEFAULT_MU, idr.DEFAULT_SIGMA,
+                          idr.DEFAULT_RHO, idr.DEFAULT_MIX_PARAM)
     
     idr.log("Initial parameter values: [%s]" % " ".join(
             "%.2f" % x for x in starting_point))
