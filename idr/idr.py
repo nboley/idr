@@ -853,7 +853,7 @@ def main():
             convergence_eps=args.convergence_eps,
             fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
 
-        if args.use_max_IDR_score_across_multi_summit_peaks:
+        if args.use_best_multisummit_IDR:
             localIDRs = correct_multi_summit_peak_IDR_values(
                 localIDRs, merged_peaks)
         IDRs = calc_global_IDR(localIDRs)
