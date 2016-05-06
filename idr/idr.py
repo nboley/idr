@@ -56,7 +56,7 @@ def load_bed(fp, signal_index, peak_summit_index=None):
         if peak_summit_index == None or int(data[peak_summit_index]) == -1:
             summit = None
         else:
-            summit = int(data[peak_summit_index]) + int(data[1])
+            summit = int(data[peak_summit_index]) + int(float(data[1]))
         assert summit == None or summit >= 0
         peak = Peak(data[0], data[5], 
                     int(float(data[1])), int(float(data[2])), 
