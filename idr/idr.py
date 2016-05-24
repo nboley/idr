@@ -590,7 +590,7 @@ Contact: Nathan Boley <npboley@gmail.com>
 
     parser.add_argument( '--use-best-multisummit-IDR',
                          default=False, action='store_true',
-        help="Set the IDR value for a group of multi summit peaks (same chr/start/stop but different summit) to the best value across all peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks.")
+        help="Set the IDR value for a group of multi summit peaks (a group of peaks with the same chr/start/stop but different summits) to the best value across all of these peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks (e.g. MACS). Use this option with care.")
 
     parser.add_argument( '--allow-negative-scores', 
                          default=False,
