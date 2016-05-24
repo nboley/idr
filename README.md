@@ -76,7 +76,7 @@ Peaks that don't overlap another peak in every other replicate are not included 
 
 * --peak-list *is* provided 
 
-Peaks are grouped by overlap, and then for each oracle peak a single peak from each replicate is chosen that overlaps the oracle peak. If there are multiple peaks that overlap the oracle, then ties are broken by applying the following criteria in order: 1) choose the replicate peak with a summit closest to the oracle peak's summit 2) choose the replicate peak that has the largest overlap with the oracle peak 3) choose the replicate peak with the highest score
+For each oracle peak a single peak from each replicate is chosen that overlaps the oracle peak. If there are multiple peaks that overlap the oracle, then ties are broken by applying the following criteria in order: 1) choose the replicate peak with a summit closest to the oracle peak's summit 2) choose the replicate peak that has the largest overlap with the oracle peak 3) choose the replicate peak with the highest score
 
 Output
 ------
@@ -219,7 +219,7 @@ Command Line Arguments
   --dont-filter-peaks-below-noise-mean
                         Allow signal points that are below the noise mean (should only be used if you know what you are doing).
   --use-best-multisummit-IDR
-                        Set the IDR value for a group of multi summit peaks (same chr/start/stop but different summit) to the best value across all peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks.
+                        Set the IDR value for a group of multi summit peaks (a group of peaks with the same chr/start/stop but different summits) to the best value across all of these peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks (e.g. MACS). Use this option with care. 
   --allow-negative-scores
                         Allow negative values for scores. (should only be used if you know what you are doing)
   --random-seed RANDOM_SEED
