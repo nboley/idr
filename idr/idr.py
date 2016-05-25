@@ -22,10 +22,13 @@ from idr.optimization import estimate_model_params, old_estimator
 from idr.utility import calc_post_membership_prbs, compute_pseudo_values
 
 Peak = namedtuple(
-    'Peak', ['chrm', 'strand', 'start', 'stop', 'signal', 'summit', 'signalValue', 'pValue', 'qValue'])
+    'Peak', ['chrm', 'strand', 'start', 'stop', 'summit',
+             'signal', 'signalValue', 'pValue', 'qValue', 
+             'name'])
 MergedPeak = namedtuple(
     'Peak', ['chrm', 'strand', 'start', 'stop', 'summit', 
-             'merged_signal', 'signals', 'pks'])
+             'merged_signal', 'signals', 'pks', 
+             'name'])
 
 def load_gff(fp):
     """
@@ -35,12 +38,13 @@ def load_gff(fp):
     for line in fp:
         if line.startswith("#"): continue
         if line.startswith("track"): continue
-        data = line.split()
+        data = line.strip().split("\t")
         signal = float(data[5])
         peak = Peak(data[0], data[6], 
                     int(float(data[3])), int(float(data[4])), 
-                    signal, None, 
-                    None, None, None )
+                    None, signal,
+                    None, None, None,
+                    data[-1])
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
 
@@ -60,8 +64,9 @@ def load_bed(fp, signal_index, peak_summit_index=None):
         assert summit == None or summit >= 0
         peak = Peak(data[0], data[5], 
                     int(float(data[1])), int(float(data[2])), 
-                    signal, summit, 
-                    float(data[6]), float(data[7]), float(data[8]) 
+                    summit, signal,
+                    float(data[6]), float(data[7]), float(data[8]),
+                    data[4]
         )
         grpd_peaks[(peak.chrm, peak.strand)].append(peak)
     return grpd_peaks
@@ -240,7 +245,7 @@ def merge_peaks_in_contig(all_s_peaks, pk_agg_fn, oracle_pks=None,
         for intervals in grpd_intervals:
             for merged_pk in iter_merge_grpd_intervals(
                     intervals, len(all_s_peaks), pk_agg_fn,
-                    use_oracle_pks=(oracle_pks != None),
+                    use_oracle_pks=(oracle_pks is not None),
                     use_nonoverlapping_peaks = use_nonoverlapping_peaks):
                 merged_pks.append(merged_pk)
     else:        
