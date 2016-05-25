@@ -219,7 +219,8 @@ Command Line Arguments
   --dont-filter-peaks-below-noise-mean
                         Allow signal points that are below the noise mean (should only be used if you know what you are doing).
   --use-best-multisummit-IDR
-                        Set the IDR value for a group of multi summit peaks (a group of peaks with the same chr/start/stop but different summits) to the best value across all of these peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks (e.g. MACS). Use this option with care. 
+                        Set the IDR value for a group of multi summit peaks (a group of peaks with the same chr/start/stop but different summits) to the best value across all of these peaks. This \
+is a work around for peak callers that don't do a good job splitting scores across multi summit peaks (e.g. MACS). If set in conjunction with --plot two plots will be created - one with alternate summits and one without.  Use this option with care.
   --allow-negative-scores
                         Allow negative values for scores. (should only be used if you know what you are doing)
   --random-seed RANDOM_SEED

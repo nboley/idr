@@ -76,10 +76,15 @@ def correct_multi_summit_peak_IDR_values(idr_values, merged_peaks):
             pk_idr_values[(pk.chrm, pk.strand, pk.start, pk.stop)], 
             idr_values[i]
         )
-    # update the values
+    # store the indices best peak indices, and update the values
+    best_indices = []
     for i, pk in enumerate(merged_peaks):
-        new_values[i] = pk_idr_values[(pk.chrm, pk.strand, pk.start, pk.stop)]
-    return new_values
+        region = (pk.chrm, pk.strand, pk.start, pk.stop)
+        if new_values[i] == pk_idr_values[region]:
+            best_indices.append(i)
+        else:
+            new_values[i] = pk_idr_values[region]
+    return numpy.array(best_indices), new_values
 
 def iter_merge_grpd_intervals(
         intervals, n_samples, pk_agg_fn,
@@ -590,7 +595,7 @@ Contact: Nathan Boley <npboley@gmail.com>
 
     parser.add_argument( '--use-best-multisummit-IDR',
                          default=False, action='store_true',
-        help="Set the IDR value for a group of multi summit peaks (a group of peaks with the same chr/start/stop but different summits) to the best value across all of these peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks (e.g. MACS). Use this option with care.")
+                         help="Set the IDR value for a group of multi summit peaks (a group of peaks with the same chr/start/stop but different summits) to the best value across all of these peaks. This is a work around for peak callers that don't do a good job splitting scores across multi summit peaks (e.g. MACS). If set in conjunction with --plot two plots will be created - one with alternate summits and one without.  Use this option with care.")
 
     parser.add_argument( '--allow-negative-scores', 
                          default=False,
@@ -754,12 +759,15 @@ def load_samples(args):
                                oracle_pks, args.use_nonoverlapping_peaks)
     return merged_peaks, signal_type
 
-def plot(args, scores, ranks, IDRs):
+def plot(args, scores, ranks, IDRs, ofprefix=None):
     assert len(args.samples) == 2
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot
 
+    if ofprefix is None:
+        ofprefix = args.output_file.name
+    
     colors = numpy.zeros(len(ranks[0]), dtype=str)
     colors[:] = 'k'
     colors[IDRs > args.soft_idr_threshold] = 'r'
@@ -818,7 +826,7 @@ def plot(args, scores, ranks, IDRs):
     matplotlib.pyplot.subplot(224)
     make_boxplots(1)
 
-    matplotlib.pyplot.savefig(args.output_file.name + ".png")
+    matplotlib.pyplot.savefig(ofprefix + ".png")
     return
 
 def main():
@@ -853,15 +861,24 @@ def main():
             convergence_eps=args.convergence_eps,
             fix_mu=args.fix_mu, fix_sigma=args.fix_sigma )    
 
+        # if the use chose to use the best multi summit IDR, then
+        # make the correction and plot just the corrected peaks
         if args.use_best_multisummit_IDR:
-            localIDRs = correct_multi_summit_peak_IDR_values(
+            update_indices, localIDRs = correct_multi_summit_peak_IDR_values(
                 localIDRs, merged_peaks)
-        IDRs = calc_global_IDR(localIDRs)
-        
+            IDRs = calc_global_IDR(localIDRs)        
+            if args.plot:
+                assert len(args.samples) == 2
+                plot(args,
+                     [s1[update_indices], s2[update_indices]],
+                     [r1[update_indices], r2[update_indices]],
+                     IDRs[update_indices],
+                     args.output_file.name + ".noalternatesummitpeaks")
+
         if args.plot:
             assert len(args.samples) == 2
             plot(args, [s1, s2], [r1, r2], IDRs)
-        
+
     
     num_peaks_passing_thresh = write_results_to_file(
         merged_peaks, 
