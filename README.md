@@ -198,8 +198,6 @@ Command Line Arguments
   --soft-idr-threshold SOFT_IDR_THRESHOLD
                         Report statistics for peaks with a global idr below this value but return all peaks with an idr below --idr.
                         Default: 0.05
-  --use-old-output-format
-                        Use old output format.
   --plot                Plot the results to [OFNAME].png
   --use-nonoverlapping-peaks
                         Use peaks without an overlapping match and set the value to 0.

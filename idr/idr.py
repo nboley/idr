@@ -355,21 +355,6 @@ def build_idr_output_line_with_bed6(
             
     return "\t".join(rv)
 
-def build_backwards_compatible_idr_output_line(
-        m_pk, IDR, localIDR, output_file_type, signal_type):
-    rv = [m_pk.chrm,]
-    for key, signal in enumerate(m_pk.signals):
-        rv.append( "%i" % min(x.start for x in m_pk.pks[key+1]))
-        rv.append( "%i" % max(x.stop for x in m_pk.pks[key+1]))
-        rv.append( "." )
-        rv.append( "%.5f" % signal )
-    
-    rv.append("%.5f" % localIDR)
-    rv.append("%.5f" % IDR)
-    rv.append(m_pk.strand)
-        
-    return "\t".join(rv)
-
 def calc_local_IDR(theta, r1, r2):
     """
     idr <- 1 - e.z
@@ -455,12 +440,8 @@ def write_results_to_file(merged_peaks, output_file,
                           output_file_type, signal_type,
                           max_allowed_idr=1.0,
                           soft_max_allowed_idr=1.0,
-                          localIDRs=None, IDRs=None, 
-                          useBackwardsCompatibleOutput=False):
-    if useBackwardsCompatibleOutput:
-        build_idr_output_line = build_backwards_compatible_idr_output_line
-    else:
-        build_idr_output_line = build_idr_output_line_with_bed6
+                          localIDRs=None, IDRs=None):
+    build_idr_output_line = build_idr_output_line_with_bed6
     
     # write out the result
     idr.log("Writing results to file", "VERBOSE");
@@ -554,10 +535,6 @@ Contact: Nathan Boley <npboley@gmail.com>
         help="Report statistics for peaks with a global idr below this "\
         +"value but return all peaks with an idr below --idr.\nDefault: %.2f" \
                          % idr.DEFAULT_SOFT_IDR_THRESH)
-
-    parser.add_argument( '--use-old-output-format', 
-                         action='store_true', default=False,
-                         help="Use old output format.")
 
     parser.add_argument( '--plot', action='store_true', default=False,
                          help='Plot the results to [OFNAME].png')
@@ -895,8 +872,7 @@ def main():
         localIDRs=localIDRs, 
         IDRs=IDRs,
         max_allowed_idr=args.idr_threshold,
-        soft_max_allowed_idr=args.soft_idr_threshold,
-        useBackwardsCompatibleOutput=args.use_old_output_format)
+        soft_max_allowed_idr=args.soft_idr_threshold)
     
     args.output_file.close()
 
