@@ -782,8 +782,9 @@ def plot(args, scores, ranks, IDRs, ofprefix=None):
     matplotlib.pyplot.ylabel("Sample 2 Rank")
     matplotlib.pyplot.title(
         "Ranks - (red >= %.2f IDR)" % args.soft_idr_threshold)
-    matplotlib.pyplot.scatter((ranks[0]+1)/float(len(ranks[0])+1), 
-                              (ranks[1]+1)/float(len(ranks[1])+1), 
+    matplotlib.pyplot.scatter((ranks[0]+1)/float(max(ranks[0])+1), 
+                              (ranks[1]+1)/float(max(ranks[1])+1), 
+                              edgecolor=colors,
                               c=colors,
                               alpha=0.05)
 
@@ -794,11 +795,13 @@ def plot(args, scores, ranks, IDRs, ofprefix=None):
         "Log10 Scores - (red >= %.2f IDR)" % args.soft_idr_threshold)
     matplotlib.pyplot.scatter(numpy.log10(scores[0]+1),
                               numpy.log10(scores[1]+1), 
-                              c=colors, alpha=0.05)
+                              edgecolor=colors,
+                              c=colors, 
+                              alpha=0.05)
     
     def make_boxplots(sample_i):
         groups = defaultdict(list)
-        norm_ranks = (ranks[sample_i]+1)/float(len(ranks[sample_i])+1)
+        norm_ranks = (ranks[sample_i]+1)/float(max(ranks[sample_i])+1)
         for rank, idr_val in zip(norm_ranks, -numpy.log10(IDRs)):
             groups[int(20*rank)].append(float(idr_val))
         group_labels = sorted((x + 2.5)/20 for x in groups.keys())
