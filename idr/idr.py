@@ -181,8 +181,8 @@ def iter_matched_oracle_pks(
                 0 == len(peaks) for peaks in peaks_and_scores.values()):
             continue
         
-        # build the aggregated signal value, which is jsut the signal value
-        # of the replicate peak witgh the closest match
+        # build the aggregated signal value, which is just the signal value
+        # of the replicate peak with the closest match
         signals = []
         rep_pks = []
         for rep_id, scored_pks in peaks_and_scores.items():
@@ -215,7 +215,7 @@ def merge_peaks_in_contig(all_s_peaks, pk_agg_fn, oracle_pks=None,
     if oracle_pks != None: 
         oracle_pks_iter = oracle_pks
     
-    # merge and sort all of the intervals, leeping track of their source
+    # merge and sort all of the intervals, keeping track of their source
     all_intervals = []
     for sample_id, peaks in enumerate([oracle_pks_iter,] + all_s_peaks):
         all_intervals.extend((pk,sample_id) for pk in peaks)
