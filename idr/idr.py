@@ -874,7 +874,11 @@ def main():
                      [r1[update_indices], r2[update_indices]],
                      IDRs[update_indices],
                      args.output_file.name + ".noalternatesummitpeaks")
-
+        # we wrap this in an else statement to avoid calculating the global IDRs
+        # twice
+        else:
+            IDRs = calc_global_IDR(localIDRs)        
+        
         if args.plot:
             assert len(args.samples) == 2
             plot(args, [s1, s2], [r1, r2], IDRs)
