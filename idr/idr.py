@@ -330,7 +330,7 @@ def build_idr_output_line_with_bed6(
     else:
         raise ValueError("Unrecognized output format '{}'".format(outputFormat))
 
-    rv.append("%.2f" % -math.log10(max(1e-5, localIDR)))    
+    rv.append("%f" % -math.log10(max(1e-5, localIDR)))    
     rv.append("%.2f" % -math.log10(max(1e-5, IDR)))
 
     for key, signal in enumerate(m_pk.signals):
