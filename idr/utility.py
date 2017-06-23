@@ -5,7 +5,53 @@ from scipy.optimize import brentq
 
 import math
 
+
 DEFAULT_PV_COVERGE_EPS = 1e-8
+def validate_peak_line(line, include_summit=False):
+    """ validates the types of each element of line 
+        use include_summit=True for narrowPeak files, """
+    try:
+        parts = line.split()
+        if include_summit:
+            chrom, start, end, name, score, strand, signal, pvalue, qvalue, summit = parts
+        else:
+            chrom, start, end, name, score, strand, signal, pvalue, qvalue = parts
+        # check chr, start, end
+        chrom_check = isinstance(chrom, str)
+        start_check = isinstance(int(start), int)
+        end_check = isinstance(int(end), int)
+        # check name, score, strand
+        name_check = isinstance(name, str)
+        score_check = int(score) >= 0 and int(score) <= 1000
+        strand_check = strand in ['.','-','+']
+        # check signal, pvalue, qvalue, summit
+        signal_check = isinstance(float(signal), float)
+        pval_check = pvalue == -1 or float(pvalue) > 0
+        qval_check = qvalue == -1 or float(qvalue) > 0
+        if include_summit:
+            summit_check = int(summit) > 0
+            return all([chrom_check, start_check, end_check, name_check, score_check, \
+                strand_check, signal_check, pval_check, qval_check, summit_check])
+        else:
+            return all([chrom_check, start_check, end_check, name_check, score_check, \
+                strand_check, signal_check, pval_check, qval_check])
+
+    except ValueError:
+        print("Validation error: one or more of the elements could not be interpreted as the proper type, or there were insufficient elements to unpack: ", line)
+        return False
+        
+
+def is_valid_narrowPeak(fp):
+    """ validates this file has all the attributes of a narrowPeak file.  """
+    validation_results = [validate_peak_line(l, True) for l in fp]
+    fp.seek(0)
+    return all(validation_results)
+
+def is_valid_broadPeak(fp):
+    """ validates this file has all the attributes of a broadPeak file.  """
+    validation_results = [validate_peak_line(l, False) for l in fp]
+    fp.seek(0)
+    return all(validation_results)
 
 def simulate_values(N, params):
     """Simulate ranks and values from a mixture of gaussians

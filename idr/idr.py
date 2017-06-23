@@ -19,7 +19,7 @@ import idr
 
 import idr.optimization
 from idr.optimization import estimate_model_params, old_estimator
-from idr.utility import calc_post_membership_prbs, compute_pseudo_values
+from idr.utility import calc_post_membership_prbs, compute_pseudo_values, is_valid_narrowPeak, is_valid_broadPeak
 
 Peak = namedtuple(
     'Peak', ['chrm', 'strand', 'start', 'stop', 'signal', 'summit', 'signalValue', 'pValue', 'qValue'])
@@ -696,9 +696,15 @@ def load_samples(args):
         else:
             peak_merge_fn = min
         if args.input_file_type == 'narrowPeak':
+            if not all([is_valid_narrowPeak(fp) for fp in args.samples]):
+                raise ValueError(
+                    "Input file(s) are not narrowPeak files")
             summit_index = 9
         else:
             summit_index = None
+            if not all([is_valid_broadPeak(fp) for fp in args.samples]):
+                raise ValueError(
+                    "Input file(s) are not broadPeak files")
         f1, f2 = [load_bed(fp, signal_index, summit_index) 
                   for fp in args.samples]
         oracle_pks =  (
