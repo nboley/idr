@@ -13,6 +13,7 @@ from itertools import chain
 
 def mean(items):
     items = list(items)
+    if len(items)==0: return 0.0
     return sum(items)/float(len(items))
 
 import idr
@@ -349,7 +350,7 @@ def build_idr_output_line_with_bed6(
             rv.append( "%.5f" % signal )
             if output_file_type == 'narrowPeak':
                 rv.append( "%i" % int(
-                    mean(x.summit-x.start for x in m_pk.pks[key])
+                    mean(x.summit-x.start for x in m_pk.pks[key] if x.summit != None)
                 ))
                                        
             
