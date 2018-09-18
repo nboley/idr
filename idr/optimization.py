@@ -24,6 +24,7 @@ import math
 from idr import *
 
 from idr.utility import (
+    simulate_values,
     compute_pseudo_values, 
     calc_post_membership_prbs, 
     calc_gaussian_mix_log_lhd )
@@ -44,7 +45,6 @@ def sum_grad_sq_loss(r1, r2, theta):
 
 # set the loss function to log_lhd
 calc_loss = log_lhd_loss
-
 
 def old_estimator(ranks_1, ranks_2):
     import ctypes
@@ -73,7 +73,7 @@ def old_estimator(ranks_1, ranks_2):
     return theta, log_lhd_loss(ranks_1, ranks_2, theta )
 
 
-def EM_step(z1, z2, starting_point, fix_mu=False, fix_sigma=False):
+def EM_step(z1, z2, starting_point):
     i_mu, i_sigma, i_rho, i_p = starting_point
     
     ez = calc_post_membership_prbs(starting_point, z1, z2)
@@ -96,8 +96,6 @@ def EM_step(z1, z2, starting_point, fix_mu=False, fix_sigma=False):
 
     p = ez_sum/len(ez)
     
-    if fix_mu: mu = i_mu
-    if fix_sigma: sigma = i_sigma
     return numpy.array([mu, sigma, rho, p])
 
 def grid_search(r1, r2 ):
@@ -309,24 +307,85 @@ def find_local_maximum_PV(r1, r2, theta, N=100, EPS=1e-6,
 
 
 def clip_model_params(init_theta):
+    theta_changed = False
     theta = init_theta.copy()
     if theta[0] < MIN_MU:
         theta[0] = MIN_MU
+        theta_changed = True
 
     if theta[1] < MIN_SIGMA:
         theta[1] = MIN_SIGMA
+        theta_changed = True
 
     if theta[2] < MIN_RHO:
         theta[2] = MIN_RHO
+        theta_changed = True
     elif theta[2] > MAX_RHO:
         theta[2] = MAX_RHO
+        theta_changed = True
 
     if theta[3] < MIN_MIX_PARAM:
         theta[3] = MIN_MIX_PARAM
+        theta_changed = True
     elif theta[3] > MAX_MIX_PARAM:
         theta[3] = MAX_MIX_PARAM
+        theta_changed = True
         
-    return theta, not (theta == init_theta).all()
+    return theta, theta_changed
+
+def CA_step(z1, z2, theta, index, min_val, max_val):
+    """Take a single coordinate ascent step.
+    
+    """
+    inner_theta = theta.copy()
+    def f(alpha):
+        inner_theta[index] = theta[index] + alpha
+        return -calc_gaussian_mix_log_lhd(inner_theta, z1, z2)
+
+    assert theta[index] >= min_val
+    min_step_size = min_val - theta[index]
+    assert theta[index] <= max_val
+    max_step_size = max_val - theta[index]
+
+    alpha = fminbound(f, min_step_size, max_step_size)
+    prev_lhd = -f(0)
+    new_lhd = -f(alpha)
+    if new_lhd > prev_lhd:
+        theta[index] += alpha
+    else:
+        new_lhd = prev_lhd
+    return theta, new_lhd
+
+
+def CA_iteration(z1, z2, prev_theta, max_iter,
+                 fix_mu=False, fix_sigma=False, eps=1e-12):
+    """Fit the gaussian model params via coordinate ascent.
+    
+    """
+    init_lhd = calc_gaussian_mix_log_lhd(prev_theta, z1, z2)
+    prev_lhd = init_lhd
+    min_vals = [MIN_MU, MIN_SIGMA, MIN_RHO, MIN_MIX_PARAM]
+    max_vals = [MAX_MU, MAX_SIGMA, MAX_RHO, MAX_MIX_PARAM]
+    theta = numpy.array(prev_theta).copy()
+    for i in range(max_iter):
+        for index, (min_val, max_val) in enumerate(zip(min_vals, max_vals)):
+            if index == 0 and fix_mu: continue
+            if index == 1 and fix_sigma: continue
+            theta, new_lhd = CA_step(z1, z2, theta, index, min_val, max_val)
+        
+        theta, changed_params = clip_model_params(theta)
+        assert changed_params == False
+            
+        if not changed_params:
+            assert new_lhd + 1e-6 >= prev_lhd
+            if new_lhd - prev_lhd < eps:
+                return theta, new_lhd
+        
+        prev_theta = theta
+        prev_lhd = new_lhd
+    
+    return theta, new_lhd
+
 
 def EM_iteration(z1, z2, prev_theta, max_iter,
                  fix_mu=False, fix_sigma=False, eps=1e-12):
@@ -336,21 +395,21 @@ def EM_iteration(z1, z2, prev_theta, max_iter,
     init_lhd = calc_gaussian_mix_log_lhd(prev_theta, z1, z2)
     prev_lhd = init_lhd
     for i in range(max_iter):
-        theta = EM_step(
-            z1, z2, prev_theta, fix_mu=fix_mu, fix_sigma=fix_sigma)
+        theta = EM_step(z1, z2, prev_theta)
         theta, changed_params = clip_model_params(theta)
-        
         new_lhd = calc_gaussian_mix_log_lhd(theta, z1, z2)
-        if not changed_params:
-            if not fix_sigma and not fix_mu:
-                assert new_lhd + 1e-6 >= prev_lhd
-            if new_lhd - prev_lhd < eps:
-                return theta, new_lhd, i+1
+        # if the model is at the boundary, abort
+        if changed_params:
+            return theta, new_lhd, True
+
+        assert new_lhd + 1e-6 >= prev_lhd
+        if new_lhd - prev_lhd < eps:
+            return theta, new_lhd, False
         
         prev_theta = theta
         prev_lhd = new_lhd
     
-    return theta, new_lhd, i+1
+    return theta, new_lhd, False
 
 
 def EMP_with_pseudo_value_algorithm(
@@ -365,9 +424,17 @@ def EMP_with_pseudo_value_algorithm(
     
     for i in range(N):
         prev_theta = theta
-        theta, new_lhd, num_EM_iter = EM_iteration(
-            z1, z2, prev_theta, max_num_EM_iter, 
-            fix_mu=fix_mu, fix_sigma=fix_sigma, eps=EPS/10)
+        # EM only works in the unconstrained case
+        if not fix_mu and not fix_sigma:
+            theta, new_lhd, changed_params = EM_iteration(
+                z1, z2, prev_theta, max_num_EM_iter, 
+                fix_mu=fix_mu, fix_sigma=fix_sigma, eps=EPS/10)
+        
+        if fix_mu or fix_sigma or changed_params:
+            theta = prev_theta
+            theta, new_lhd = CA_iteration(
+                z1, z2, prev_theta, max_num_EM_iter, 
+                fix_mu=fix_mu, fix_sigma=fix_sigma, eps=EPS/10)
         
         sum_param_change = numpy.abs(theta - prev_theta).sum()
 
@@ -385,11 +452,7 @@ def EMP_with_pseudo_value_algorithm(
             theta, level='VERBOSE')
         
         if i > 3 and (sum_param_change < EPS and mean_pseudo_val_change < EPS): 
-            if num_EM_iter >= max_num_EM_iter and max_num_EM_iter < 1000:
-                max_num_EM_iter *= 2
-                log( "WARNING: params appear to have converged but EM hasn't converged - increasing number of EM iterations to %i (this may just mean that 1 of the parameters converged to a boundary)" % max_num_EM_iter, level='VERBOSE' )
-            else:
-                break
+            break
     
     return theta, log_lhd_loss(r1, r2, theta)
 
@@ -406,7 +469,14 @@ def estimate_model_params(
     
     return theta, loss
 
+# XXX change theta to a named tuple with actual paramaeter values
+# mu, sigma, correlation, mixture
+# DONE - set FIX mu and set INITIAL mu : Add option to fix mu to 0
+# Add option to disable less than 0 heuristic
+# Add a disable negative value option error
+# also fix the log plot
 def main():
+    """
     r1_values, r2_values = [], []
     with open(sys.argv[1]) as fp:
         for line in fp:
@@ -415,8 +485,12 @@ def main():
             r2_values.append(float(r2))
     r1_ranks, r2_ranks = [(-numpy.array(x)).argsort().argsort() 
                           for x in (r1_values, r2_values)]
+    """
+    params = [1, 1, 0.1, 0.5]
+    (r1_ranks, r2_ranks), (r1_values, r2_values) = simulate_values(1000, params)
     log( "Finished Loading Data", level='VERBOSE' )
-    
+
+    params = [1, 1, 0.5, 0.5]    
     starting_point = numpy.array( params )
     theta, log_lhd = estimate_model_params(
         r1_ranks, r2_ranks, starting_point, 

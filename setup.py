@@ -1,18 +1,19 @@
 import os, sys
+import numpy
 from setuptools import setup, Extension, find_packages
 
 try:
     from Cython.Build import cythonize
     extensions = cythonize([
         Extension("idr.inv_cdf", 
-                  ["idr/inv_cdf.pyx", ]),
+                  ["idr/inv_cdf.pyx", ],
+                  include_dirs=[numpy.get_include()]),
     ])
 except ImportError:
-    raise
-    print( "Cython not installed: reverting to c version")
     extensions = [
         Extension("idr.inv_cdf", 
-                  ["idr/inv_cdf.c", ]),
+                  ["idr/inv_cdf.c", ],
+                  include_dirs=[numpy.get_include()]),
     ]
 
 def main():
@@ -28,9 +29,9 @@ def main():
 
         ext_modules = extensions,     
 
-        install_requires = [ 'scipy', 'numpy'  ],
+        install_requires = [ 'scipy>=0.13.0', 'numpy'  ],
 
-        extra_requires=['matplotlib'],
+        extras_require={'PLOT': 'matplotlib'},
 
         packages= ['idr',],
 
@@ -41,7 +42,7 @@ def main():
                        "stable measure of the reproducibility of identified " +
                        "peaks."),
 
-        license = "GPL2",
+        license = "GPL3",
         keywords = "IDR",
         url = "https://github.com/nboley/idr",
 
@@ -52,7 +53,7 @@ def main():
     """,
         classifiers=[
             "Programming Language :: Python :: 3",
-            "Development Status :: 4 - Beta",
+            "Development Status :: 5 - Production/Stable",
             "Topic :: Scientific/Engineering :: Bio-Informatics",
             "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
         ],

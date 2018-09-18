@@ -1,6 +1,6 @@
 import sys
 
-__version__ = "2.0.0beta1"
+__version__ = "2.0.3"
 
 DEBUG_LEVELS = {'ERROR', 'WARNING', None, 'VERBOSE', 'DEBUG'}
 ERROR_LEVELS = {'ERROR', 'WARNING'}
@@ -31,8 +31,6 @@ QUIET = False
 PROFILE = False
 
 ## idr.py config options
-IGNORE_NONOVERLAPPING_PEAKS = False
-
 MAX_ITER_DEFAULT = 3000
 CONVERGENCE_EPS_DEFAULT = 1e-6
 
@@ -41,9 +39,11 @@ DEFAULT_SIGMA = 1.0
 DEFAULT_RHO = 0.2
 DEFAULT_MIX_PARAM = 0.5
 
-DEFAULT_PLOT_IDR = 0.05
+DEFAULT_SOFT_IDR_THRESH = 0.05
+DEFAULT_IDR_THRESH = 1.00
 
 FILTER_PEAKS_BELOW_NOISE_MEAN = True
+ONLY_ALLOW_NON_NEGATIVE_VALUES = True
 
 ## optimization.py config options
 
@@ -54,5 +54,7 @@ MIN_RHO = 0.10
 MAX_RHO = 0.99
 
 MIN_SIGMA = 0.20
+MAX_SIGMA = 20
 
 MIN_MU = 0.0
+MAX_MU = 20.0
