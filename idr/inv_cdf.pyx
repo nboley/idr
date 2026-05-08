@@ -1,5 +1,6 @@
 cimport cython
 cimport numpy as np
+import numpy as np
 from libc.math cimport exp, sqrt, pow, log, erf, fabs
 from libc.stdlib cimport malloc, free
 
@@ -67,20 +68,20 @@ def cdf_i(double r, double mu, double sigma, double lamda,
 @cython.wraparound(False)
 @cython.cdivision(True)
 def c_compute_pseudo_values(
-        np.ndarray[np.int_t, ndim=1] rs, 
-        np.ndarray[np.double_t, ndim=1] zs, 
+        long[:] rs, 
+        double[:] zs, 
         double mu, double sigma, double lamda,
         double EPS):
-    cdef int N = len(rs)
+    cdef int N = rs.shape[0]
     cdef double pseudo_N = N+1
     cdef double* ordered_zs = <double * >malloc(N*sizeof(double))
     
     cdef double smallest_r = 1./pseudo_N
-    lb = d_min(0, mu)
+    cdef double lb = d_min(0, mu)
     while c_cdf(lb, mu, sigma, lamda) > smallest_r:
         lb -= 1
 
-    ub = d_max(0, mu)
+    cdef double ub = d_max(0, mu)
     while c_cdf(ub, mu, sigma, lamda) < 1-smallest_r:
         ub += 1
     
@@ -101,7 +102,7 @@ def c_compute_pseudo_values(
         ub = lb + 2*(res - ordered_zs[i-1])
     
     for i in range(N):
-        zs[i] = ordered_zs[rs[i]]
+        zs[i] = ordered_zs[<size_t>rs[i]]
     free( ordered_zs )
     
-    return zs
+    return np.asarray(zs)

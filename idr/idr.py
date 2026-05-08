@@ -295,8 +295,8 @@ def build_rank_vectors(merged_peaks):
     rank1 = numpy.lexsort((numpy.random.random(len(s1)), s1)).argsort()
     rank2 = numpy.lexsort((numpy.random.random(len(s2)), s2)).argsort()
     
-    return ( numpy.array(rank1, dtype=numpy.int), 
-             numpy.array(rank2, dtype=numpy.int) )
+    return ( numpy.array(rank1, dtype=int), 
+             numpy.array(rank2, dtype=int) )
 
 def build_idr_output_line_with_bed6(
         m_pk, IDR, localIDR, output_file_type, signal_type, 
